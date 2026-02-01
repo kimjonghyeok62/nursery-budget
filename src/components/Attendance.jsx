@@ -643,17 +643,40 @@ export default function Attendance({ gsCfg, onJumpToTab, initialMembers = [], in
                     };
 
                     const transfers = [];
+                    const inactiveMembers = [];
+
                     currentMembers.forEach(m => {
                         const rVal = getVal(m.regDate);
                         const lVal = getVal(m.leaveDate);
+
+                        // Check if transfer happened during this week
                         if (rVal && rVal >= sVal && rVal <= eVal) {
                             transfers.push(`${m.name}\n(${formatDateMD(m.regDate)} 전입)`);
                         }
                         if (lVal && lVal >= sVal && lVal <= eVal) {
                             transfers.push(`${m.name}\n(${formatDateMD(m.leaveDate)} 전출)`);
                         }
+
+                        // Check if member is inactive during this week (but no transfer event)
+                        if (!isMemberActiveAt(m, weekStart)) {
+                            // Only add to inactive list if no transfer event in this week
+                            const hasTransferThisWeek = (rVal && rVal >= sVal && rVal <= eVal) || (lVal && lVal >= sVal && lVal <= eVal);
+                            if (!hasTransferThisWeek) {
+                                inactiveMembers.push(m.name);
+                            }
+                        }
                     });
-                    rec[h] = transfers.join("\n\n");
+
+                    // Build the cell content
+                    let cellContent = transfers.join("\n\n");
+
+                    // Add (미반영) if there are inactive members
+                    if (inactiveMembers.length > 0) {
+                        if (cellContent) cellContent += "\n\n";
+                        cellContent += "(미반영)";
+                    }
+
+                    rec[h] = cellContent;
                 });
                 return rec;
             };

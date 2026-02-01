@@ -44,7 +44,7 @@ const Reimbursements = ({ expenses, setExpenses }) => {
 
   function handleWebChurchLogin() {
     // Open in a separate popup window to allow side-by-side view
-    const targetUrl = "https://ch2ch.or.kr/mobile/default_main.asp#Gift_Committee/gift_Ask_input.asp?mode=input&kind=new&ask_type=decision&money_account=2302&money_years=12129";
+    const targetUrl = "https://ch2ch.or.kr/mobile/default_main.asp#Gift_Committee/gift_Ask_input.asp?mode=input&kind=new&ask_type=decision&money_account=2302&money_years=12884";
     const width = 800;
     const height = 900;
     const left = window.screen.width - width;

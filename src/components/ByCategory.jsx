@@ -224,7 +224,20 @@ const ByCategory = ({ categorySummary, expenses, onDelete, onEdit, filterCat, se
                   filtered.map((e) => (
                     <tr key={e.id} id={`row - ${e.id} `} className="border-b hover:bg-gray-50 group transition-colors duration-500">
                       <td className={`py-0.5 px-2 text-center font-mono text-gray-500 text-base leading-none`}>{serialMap[e.id] || "-"}</td>
-                      <td className={`py-0.5 px-2 text-base leading-none ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600 hover:font-medium' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{e.description}</td>
+                      <td
+                        className="py-0.5 px-2 text-base leading-none cursor-pointer hover:text-blue-600 hover:font-medium"
+                        onClick={() => {
+                          if (!e.description) return;
+                          navigator.clipboard.writeText(e.description).then(() => {
+                            alert(`복사되었습니다: ${e.description}`);
+                          }).catch(err => {
+                            console.error("Copy failed", err);
+                          });
+                        }}
+                        title="클릭하여 복사"
+                      >
+                        {e.description}
+                      </td>
                       <td className={`py-0.5 px-2 text-gray-500 text-base leading-none ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{e.date ? e.date.substring(0, 10) : ""}</td>
                       {!filterCat && <td className={`py-0.5 px-2 text-gray-700 text-base leading-none ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{e.category}</td>}
                       <td className={`py-0.5 px-2 text-right font-bold text-gray-800 text-base leading-none ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{formatKRW(e.amount)}</td>
