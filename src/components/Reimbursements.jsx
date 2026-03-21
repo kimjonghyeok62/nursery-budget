@@ -79,19 +79,19 @@ const Reimbursements = ({ expenses, setExpenses }) => {
       >
 
         <div className="overflow-x-auto">
-          <table className="w-full text-base whitespace-nowrap">
+          <table className="min-w-[900px] w-full text-base whitespace-nowrap">
             <thead>
               <tr className="text-left border-b">
-                <th className="py-2 px-2">입력</th>
+                <th className="py-2 px-2 w-10">입력</th>
 
-                <th className="py-2 px-2">연번</th>
-                <th className="py-2 px-2 text-blue-600">내역(복사)</th>
-                <th className="py-2 px-2">지출 날짜</th>
-                <th className="py-2 px-2">세세목</th>
-                <th className="py-2 px-2">금액</th>
-                <th className="py-2 px-2">구매자</th>
-                <th className="py-2 px-2">은행명</th>
-                <th className="py-2 px-2 text-blue-600">계좌번호(복사)</th>
+                <th className="py-2 px-2 w-12">연번</th>
+                <th className="py-2 px-2 text-blue-600 max-w-[220px]">내역(복사)</th>
+                <th className="py-2 px-2 w-28">지출 날짜</th>
+                <th className="py-2 px-2 w-20">세세목</th>
+                <th className="py-2 px-2 w-24">금액</th>
+                <th className="py-2 px-2 w-16">구매자</th>
+                <th className="py-2 px-2 w-16">은행명</th>
+                <th className="py-2 px-2 text-blue-600 w-32">계좌번호(복사)</th>
               </tr>
             </thead>
             <tbody>
@@ -103,9 +103,9 @@ const Reimbursements = ({ expenses, setExpenses }) => {
 
                     <td className="py-1 px-2 text-gray-500 font-mono">{serialMap[e.id] || "-"}</td>
                     <td
-                      className="py-1 px-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors rounded"
+                      className="py-1 px-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors rounded max-w-[220px] truncate"
                       onClick={() => copyToClipboard(e.description)}
-                      title="클릭하여 복사"
+                      title={e.description}
                     >
                       {e.description}
                     </td>

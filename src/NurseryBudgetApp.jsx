@@ -41,6 +41,16 @@ import { formatKRW, monthKey, parseAmount } from "./utils/format";
 // ---- Google Apps Script 연동 헬퍼 ----
 const initialExpenses = [];
 
+const AMOUNT_RE = /(\d[\d,]*(?:\.\d+)?(?:만|억)?원)/g;
+const AMOUNT_TEST = /^\d[\d,]*(?:\.\d+)?(?:만|억)?원$/;
+function boldAmounts(text) {
+  if (!text) return text;
+  const parts = text.split(AMOUNT_RE);
+  return parts.map((part, i) =>
+    AMOUNT_TEST.test(part) ? <strong key={i}>{part}</strong> : part
+  );
+}
+
 export default function NurseryBudgetApp() {
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -607,23 +617,24 @@ export default function NurseryBudgetApp() {
   async function onImageUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const currentUrls = form.receiptUrl ? form.receiptUrl.split('|').filter(Boolean) : [];
+    if (currentUrls.length >= 5) return;
 
     try {
       setIsUploading(true);
+
+      // 항상 먼저 압축 (Drive 성공/실패 무관하게 폴백용으로 사용, 800px/0.45 품질로 소용량)
+      const compressed = await compressImage(file, 800, 0.45);
+
       if (gsOn && gsCfg.url) {
         try {
-          // COMPRESSION: Mobile uploads fail if too large. Resize & Convert to JPEG.
-          const compressed = await compressImage(file);
           const safeDesc = form.description ? form.description.replace(/[^\w가-힣_.-]/g, "_") : "receipt";
           const formattedAmount = parseAmount(form.amount).toLocaleString('ko-KR');
 
           let serialPrefix = "";
-          // 1. Try to find existing serial
           if (editingId && serialMap[editingId]) {
             serialPrefix = `${serialMap[editingId]}_`;
           } else {
-            // 2. Real-time Serial Number: Fetch from Server (User Request)
-            // Fetch list to get accurate count (including deletions)
             let serverCount = expenses.length;
             try {
               const listData = await gsFetch(gsCfg, "list", {});
@@ -633,12 +644,10 @@ export default function NurseryBudgetApp() {
             } catch (e) {
               console.warn("Serial fetch failed, using local count", e);
             }
-
             const nextSerial = serverCount + 1;
             serialPrefix = `${nextSerial}_`;
           }
 
-          // Format: Serial_Desc_Date_Cat_Amt_Purchaser
           const filename = `${serialPrefix}${safeDesc}_${form.date}_${form.category}_${formattedAmount}원_${form.purchaser || "미지정"}.jpg`;
 
           const res = await gsFetch(gsCfg, "uploadReceipt", {
@@ -648,22 +657,22 @@ export default function NurseryBudgetApp() {
           });
           const viewUrl = res.viewUrl || (res.fileId ? `https://drive.google.com/uc?export=view&id=${res.fileId}` : "") || (res.id ? `https://drive.google.com/uc?export=view&id=${res.id}` : "");
           if (viewUrl) {
-            setForm((f) => ({ ...f, receiptUrl: viewUrl }));
+            setForm((f) => {
+              const urls = f.receiptUrl ? f.receiptUrl.split('|').filter(Boolean) : [];
+              return { ...f, receiptUrl: [...urls, viewUrl].join('|') };
+            });
             return;
           }
         } catch (err) {
           console.warn("Drive 업로드 실패", err);
-          alert("드라이브 업로드 실패 상세: " + err.toString() + "\n(로컬 미리보기로 대체합니다)");
         }
       }
 
-      // fallback: 로컬 미리보기
-      const nextUrl = URL.createObjectURL(file);
-      if (receiptObjUrlRef.current) {
-        try { URL.revokeObjectURL(receiptObjUrlRef.current); } catch { }
-      }
-      receiptObjUrlRef.current = nextUrl;
-      setForm((f) => ({ ...f, receiptUrl: nextUrl }));
+      // fallback: data URL을 직접 저장 (새로고침 후에도 유지됨)
+      setForm((f) => {
+        const urls = f.receiptUrl ? f.receiptUrl.split('|').filter(Boolean) : [];
+        return { ...f, receiptUrl: [...urls, compressed.dataUrl].join('|') };
+      });
 
     } finally {
       setIsUploading(false);
@@ -808,29 +817,31 @@ export default function NurseryBudgetApp() {
         let hasUpdates = false;
 
         for (const e of expenses) {
-          if (typeof e.receiptUrl === 'string' && (e.receiptUrl.startsWith("blob:") || e.receiptUrl.startsWith("data:"))) {
-            try {
-              const conv = await urlToDataUrl(e.receiptUrl);
-              const safeDesc = e.description ? e.description.replace(/[^\w가-힣_.-]/g, "_") : "receipt";
-              const formattedAmount = parseAmount(e.amount).toLocaleString('ko-KR');
-
-              // Get serial number
-              const serial = serialMap[e.id] || "No";
-              const filename = `${serial}_${safeDesc}_${e.date}_${e.category}_${formattedAmount}원_${e.purchaser || "미지정"}.png`;
-
-              const up = await gsFetch(gsCfg, "uploadReceipt", {
-                filename,
-                mimeType: conv.mime || "image/png",
-                dataUrl: conv.dataUrl,
-              });
-              const viewUrl = up.viewUrl || (up.fileId ? `https://drive.google.com/uc?export=view&id=${up.fileId}` : "") || (up.id ? `https://drive.google.com/uc?export=view&id=${up.id}` : "");
-              if (viewUrl) {
-                next.push({ ...e, receiptUrl: viewUrl, receiptDriveId: up.fileId || up.id || "" });
-                hasUpdates = true;
-                continue;
+          if (typeof e.receiptUrl === 'string' && e.receiptUrl) {
+            const parts = e.receiptUrl.split('|');
+            const converted = [];
+            let changed = false;
+            for (const part of parts) {
+              if (part.startsWith("blob:") || part.startsWith("data:")) {
+                try {
+                  const conv = part.startsWith("data:") ? { dataUrl: part, mime: "image/jpeg" } : await urlToDataUrl(part);
+                  const safeDesc = e.description ? e.description.replace(/[^\w가-힣_.-]/g, "_") : "receipt";
+                  const formattedAmount = parseAmount(e.amount).toLocaleString('ko-KR');
+                  const serial = serialMap[e.id] || "No";
+                  const filename = `${serial}_${safeDesc}_${e.date}_${e.category}_${formattedAmount}원_${e.purchaser || "미지정"}.jpg`;
+                  const up = await gsFetch(gsCfg, "uploadReceipt", { filename, mimeType: "image/jpeg", dataUrl: conv.dataUrl });
+                  const viewUrl = up.viewUrl || (up.fileId ? `https://drive.google.com/uc?export=view&id=${up.fileId}` : "") || "";
+                  if (viewUrl) { converted.push(viewUrl); changed = true; continue; }
+                } catch (err) {
+                  console.warn("로컬 영수증 업로드 실패, 기존 URL 유지", err);
+                }
               }
-            } catch (err) {
-              console.warn("로컬 영수증 업로드 실패, 기존 URL 유지", err);
+              converted.push(part);
+            }
+            if (changed) {
+              next.push({ ...e, receiptUrl: converted.join('|') });
+              hasUpdates = true;
+              continue;
             }
           }
           next.push(e);
@@ -1067,14 +1078,43 @@ export default function NurseryBudgetApp() {
           </div>
         </div>
         {/* Bottom Row: Receipt & Buttons */}
-        <div className="flex flex-wrap md:flex-nowrap gap-3 items-center">
-          <div className="flex-1 flex items-center gap-2">
-            <label className={`shrink-0 px-2 py-2 rounded-xl border border-gray-200 text-base cursor-pointer flex items-center gap-2 transition-colors ${isUploading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-50 hover:bg-gray-100 text-gray-600'}`}>
-              {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
-              <span>{isUploading ? "업로드 중..." : "증빙"}</span>
-              <input type="file" accept="image/*" onChange={onImageUpload} className="hidden" disabled={isUploading} />
-            </label>
-            <input type="url" value={form.receiptUrl} onChange={(e) => setForm({ ...form, receiptUrl: e.target.value })} placeholder="또는 URL" className="flex-1 min-w-0 rounded-xl border-gray-300 border px-2 py-2 bg-gray-50 focus:bg-white transition-colors text-base" />
+        {(() => {
+          const receiptUrls = form.receiptUrl ? form.receiptUrl.split('|').filter(Boolean) : [];
+          const removeReceipt = (idx) => {
+            const next = receiptUrls.filter((_, i) => i !== idx);
+            setForm((f) => ({ ...f, receiptUrl: next.join('|') }));
+          };
+          return (
+        <div className="flex flex-wrap md:flex-nowrap gap-3 items-start">
+          <div className="flex-1 flex flex-col gap-2">
+            {/* 썸네일 그리드 */}
+            {receiptUrls.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {receiptUrls.map((url, idx) => {
+                  const thumb = url.includes("drive.google.com") && url.includes("id=")
+                    ? `https://drive.google.com/thumbnail?id=${new URL(url).searchParams.get("id")}&sz=w200`
+                    : url;
+                  return (
+                    <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 group">
+                      <img src={thumb} alt={`증빙${idx + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeReceipt(idx)}
+                        className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity leading-none"
+                      >×</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* 업로드 버튼 */}
+            <div className="flex items-center gap-2">
+              <label className={`shrink-0 px-2 py-2 rounded-xl border border-gray-200 text-base cursor-pointer flex items-center gap-2 transition-colors ${(isUploading || receiptUrls.length >= 5) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-50 hover:bg-gray-100 text-gray-600'}`}>
+                {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+                <span>{isUploading ? "업로드 중..." : `증빙 추가 (${receiptUrls.length}/5)`}</span>
+                <input type="file" accept="image/*" onChange={onImageUpload} className="hidden" disabled={isUploading || receiptUrls.length >= 5} />
+              </label>
+            </div>
           </div>
 
 
@@ -1091,6 +1131,8 @@ export default function NurseryBudgetApp() {
             </button>
           </div>
         </div>
+          );
+        })()}
       </form>
 
       {/* 2026 Budget Guide - Collapsible Hybrid Section */}
@@ -1098,11 +1140,11 @@ export default function NurseryBudgetApp() {
         <button
           type="button"
           onClick={() => setShowBudgetGuide(!showBudgetGuide)}
-          className="flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors"
+          className="flex items-center gap-2 text-base font-bold text-blue-600 hover:text-blue-700 transition-colors"
         >
-          <FileText size={18} />
+          <FileText size={20} />
           <span>2026년 예산서 지침 {showBudgetGuide ? "접기" : "보기"}</span>
-          {showBudgetGuide ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          {showBudgetGuide ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
 
         {showBudgetGuide && (
@@ -1121,29 +1163,29 @@ export default function NurseryBudgetApp() {
                     }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className={`font-bold text-sm ${isActive ? "text-blue-700" : "text-gray-700"}`}>
+                    <h3 className={`font-bold text-base ${isActive ? "text-blue-700" : "text-gray-700"}`}>
                       {cat}
                     </h3>
                     {isActive && (
-                      <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded-md animate-pulse">
+                      <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-md animate-pulse">
                         선택됨
                       </span>
                     )}
                   </div>
 
                   <div className="space-y-1.5">
-                    <div className="text-[12px] leading-relaxed text-gray-600">
+                    <div className="text-sm leading-relaxed text-gray-600">
                       <p className="font-semibold text-gray-500 mb-0.5">[지출 내용]</p>
                       {guide.descriptions.map((desc, i) => (
-                        <p key={i} className="pl-1 border-l border-gray-200">{desc}</p>
+                        <p key={i} className="pl-1 border-l border-gray-200">{boldAmounts(desc)}</p>
                       ))}
                     </div>
 
                     {guide.notes && guide.notes.length > 0 && (
-                      <div className="text-[11px] leading-relaxed text-amber-700 bg-amber-50/50 p-1.5 rounded-lg border border-amber-100/50 mt-2">
+                      <div className="text-xs leading-relaxed text-amber-700 bg-amber-50/50 p-1.5 rounded-lg border border-amber-100/50 mt-2">
                         <p className="font-bold mb-0.5">⚠️ 특이사항</p>
                         {guide.notes.map((note, i) => (
-                          <p key={i}>{note}</p>
+                          <p key={i}>{boldAmounts(note)}</p>
                         ))}
                       </div>
                     )}
@@ -1288,7 +1330,7 @@ export default function NurseryBudgetApp() {
 
         {tab === "dashboard" && (
           <div className="space-y-8">
-            <Dashboard {...dashboardProps} expenses={expenses} />
+            <Dashboard {...dashboardProps} expenses={expenses} onViewReceipt={handleJumpToReceipt} />
           </div>
         )}
         {tab === "bycat" && (
