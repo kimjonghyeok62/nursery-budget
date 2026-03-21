@@ -4,6 +4,17 @@ import Card from './Card';
 import { Pencil, Trash2, ExternalLink } from 'lucide-react';
 import { useSerialNumbers } from '../hooks/useSerialNumbers';
 import { useExpenses2025 } from '../hooks/useExpenses2025';
+function openReceiptUrl(url) {
+  if (url.startsWith('data:')) {
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(`<!DOCTYPE html><html><head><title>증빙</title></head><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;"><img src="${url}" style="max-width:100%;max-height:100vh;object-fit:contain;"></body></html>`);
+      win.document.close();
+    }
+  } else {
+    window.open(url, '_blank');
+  }
+}
 
 const COLORS = [
   '#ef4444', // red-500
@@ -42,6 +53,7 @@ const ByCategory = ({ categorySummary, expenses, onDelete, onEdit, filterCat, se
   const filtered = filterCat ? expenses.filter((e) => e.category === filterCat) : expenses;
   const serialMap = useSerialNumbers();
   const expenses2025 = useExpenses2025();
+  const [expandedDescId, setExpandedDescId] = useState(null);
 
   const historyData = useMemo(() => {
     const now = new Date();
@@ -203,56 +215,71 @@ const ByCategory = ({ categorySummary, expenses, onDelete, onEdit, filterCat, se
           }
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-sm leading-none whitespace-nowrap">
+            <table className="w-full min-w-[580px] text-sm leading-none">
               <thead>
                 <tr className="bg-gray-50 border-b text-gray-600 text-sm">
-                  <th className="py-2 px-2 text-center w-12">연번</th>
-                  <th className="py-2 px-2 text-left">적요</th>
-                  <th className="py-2 px-2 text-left w-24">날짜</th>
-                  {!filterCat && <th className="py-2 px-2 text-left w-20">세세목</th>}
-                  <th className="py-2 px-2 text-right w-24">금액</th>
-                  <th className="py-2 px-2 text-center w-20">구매자</th>
-                  <th className="py-2 px-2 text-center w-16">영수증</th>
-                  <th className="py-2 px-2 text-center w-16">입금여부</th>
-                  <th className="py-2 px-2 text-center w-20">관리</th>
+                  {/* 연번: sticky left-0 */}
+                  <th className="py-2 px-2 text-center w-10 sticky left-0 z-20 bg-gray-50 whitespace-nowrap">연번</th>
+                  {/* 날짜: 스크롤 시 연번 뒤로 지나감 */}
+                  <th className="py-2 px-2 text-left w-24 whitespace-nowrap">날짜</th>
+                  {/* 적요: sticky left-10(40px), 날짜가 지나간 뒤 고정 */}
+                  <th className="py-2 px-2 text-left sticky left-10 z-20 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">적요</th>
+                  {!filterCat && <th className="py-2 px-2 text-left w-20 whitespace-nowrap">세세목</th>}
+                  <th className="py-2 px-2 text-right w-28 whitespace-nowrap">금액</th>
+                  <th className="py-2 px-2 text-center w-16 whitespace-nowrap">구매자</th>
+                  <th className="py-2 px-2 text-center w-14 whitespace-nowrap">영수증</th>
+                  <th className="py-2 px-2 text-center w-10 whitespace-nowrap">입금</th>
+                  <th className="py-2 px-2 text-center w-14 whitespace-nowrap">관리</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr><td colSpan={9} className="py-8 text-center text-gray-400">내역이 없습니다.</td></tr>
                 ) : (
-                  filtered.map((e) => (
+                  filtered.map((e) => {
+                    const isExpanded = expandedDescId === e.id;
+                    return (
                     <tr key={e.id} id={`row - ${e.id} `} className="border-b hover:bg-gray-50 group transition-colors duration-500">
-                      <td className={`py-0.5 px-2 text-center font-mono text-gray-500 text-base leading-none`}>{serialMap[e.id] || "-"}</td>
-                      <td
-                        className="py-0.5 px-2 text-base leading-none cursor-pointer hover:text-blue-600 hover:font-medium"
-                        onClick={() => {
-                          if (!e.description) return;
-                          navigator.clipboard.writeText(e.description).then(() => {
-                            alert(`복사되었습니다: ${e.description}`);
-                          }).catch(err => {
-                            console.error("Copy failed", err);
-                          });
-                        }}
-                        title="클릭하여 복사"
-                      >
-                        {e.description}
+                      {/* 연번 sticky */}
+                      <td className="py-0.5 px-2 text-center font-mono text-gray-500 text-base leading-tight sticky left-0 z-10 bg-white group-hover:bg-gray-50 whitespace-nowrap align-top pt-1.5">
+                        <div>{serialMap[e.id] || "-"}</div>
+                        <div className="text-xs text-gray-400 font-normal mt-0.5">{e.date ? e.date.substring(5) : ""}</div>
                       </td>
-                      <td className={`py-0.5 px-2 text-gray-500 text-base leading-none ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{e.date ? e.date.substring(0, 10) : ""}</td>
-                      {!filterCat && <td className={`py-0.5 px-2 text-gray-700 text-base leading-none ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{e.category}</td>}
-                      <td className={`py-0.5 px-2 text-right font-bold text-gray-800 text-base leading-none ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{formatKRW(e.amount)}</td>
-                      <td className={`py-0.5 px-2 text-center text-gray-600 text-base leading-none ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{e.purchaser}</td>
-                      <td className="py-0.5 px-2 text-center">
+                      {/* 날짜: 스크롤 시 연번 뒤로 지나감 */}
+                      <td className="py-0.5 px-2 text-gray-500 text-base leading-none whitespace-nowrap">{e.date ? e.date.substring(0, 10) : ""}</td>
+                      {/* 적요: sticky, 클릭 시 전체 표시 토글 */}
+                      <td
+                        className="py-0.5 px-2 text-base leading-snug cursor-pointer hover:text-blue-600 sticky left-10 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)] max-w-[45vw] md:max-w-xs lg:max-w-sm"
+                        onClick={() => setExpandedDescId(isExpanded ? null : e.id)}
+                        title={isExpanded ? "접기" : "전체 보기"}
+                      >
+                        {isExpanded
+                          ? <span className="whitespace-normal break-words text-blue-700">{e.description}</span>
+                          : <div className="truncate">{e.description}</div>
+                        }
+                      </td>
+                      {!filterCat && <td className="py-0.5 px-2 text-gray-700 text-base leading-none whitespace-nowrap">{e.category}</td>}
+                      <td className={`py-0.5 px-2 text-right font-bold text-gray-800 text-base leading-none whitespace-nowrap ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{formatKRW(e.amount)}</td>
+                      <td className={`py-0.5 px-2 text-center text-gray-600 text-base leading-none whitespace-nowrap ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{e.purchaser}</td>
+                      <td className="py-0.5 px-2 text-center whitespace-nowrap">
                         {e.receiptUrl && e.receiptUrl.length > 5 ? (
-                          <button onClick={(ent) => { ent.stopPropagation(); onViewReceipt && onViewReceipt(e.id); }} className="text-blue-500 underline text-sm hover:text-blue-700">보기</button>
+                          <button onClick={(ent) => {
+                            ent.stopPropagation();
+                            const urls = e.receiptUrl.split('|').filter(Boolean);
+                            if (urls.some(u => u.startsWith('data:'))) {
+                              urls.forEach(u => openReceiptUrl(u));
+                            } else {
+                              onViewReceipt && onViewReceipt(e.id);
+                            }
+                          }} className="text-blue-500 underline text-sm hover:text-blue-700">{e.receiptUrl.split('|').filter(Boolean).length > 1 ? `보기(${e.receiptUrl.split('|').filter(Boolean).length})` : '보기'}</button>
                         ) : (
                           <span className="text-gray-300 text-sm">-</span>
                         )}
                       </td>
-                      <td className="py-0.5 px-2 text-center cursor-pointer hover:bg-gray-100" onClick={(ent) => { ent.stopPropagation(); onToggleReimbursed && onToggleReimbursed(e.id); }}>
+                      <td className="py-0.5 px-2 text-center cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={(ent) => { ent.stopPropagation(); onToggleReimbursed && onToggleReimbursed(e.id); }}>
                         {e.reimbursed ? <span className="text-blue-600 font-bold text-base">O</span> : <span className="text-gray-300 font-bold text-base">X</span>}
                       </td>
-                      <td className="py-0.5 px-2 text-center">
+                      <td className="py-0.5 px-2 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <button onClick={(ent) => { ent.stopPropagation(); onEdit(e); }} className="p-0.5 rounded bg-blue-50 text-blue-500 hover:bg-blue-100 transition-colors" title="수정">
                             <Pencil size={14} />
@@ -263,16 +290,17 @@ const ByCategory = ({ categorySummary, expenses, onDelete, onEdit, filterCat, se
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
-                {/* Total Row for Expenses */}
+                {/* 합계 행 */}
                 {filtered.length > 0 && (
                   <tr className="border-t-2 border-gray-200 bg-blue-50">
+                    <td className="py-2 px-2 sticky left-0 z-10 bg-blue-50"></td>
                     <td className="py-2 px-2"></td>
-                    <td className="py-2 px-2 text-blue-600 font-bold text-base text-center">합계</td>
-                    <td className="py-2 px-2"></td>
+                    <td className="py-2 px-2 text-blue-600 font-bold text-base text-center sticky left-10 z-10 bg-blue-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">합계</td>
                     {!filterCat && <td className="py-2 px-2"></td>}
-                    <td className="py-2 px-2 text-right font-bold text-blue-600 text-base">
+                    <td className="py-2 px-2 text-right font-bold text-blue-600 text-base whitespace-nowrap">
                       {formatKRW(filtered.reduce((sum, item) => sum + item.amount, 0))}
                     </td>
                     <td className="py-2 px-2"></td>

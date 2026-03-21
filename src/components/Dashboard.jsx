@@ -3,19 +3,21 @@ import { formatKRW } from '../utils/format';
 import Card from './Card';
 import ProgressBar from './ProgressBar';
 import ExpenseChart from './ExpenseChart';
+import { useSerialNumbers } from '../hooks/useSerialNumbers';
 
-const Dashboard = ({ totalSpent, categorySummary, onNavigate, budget, expenses }) => {
+const Dashboard = ({ totalSpent, categorySummary, onNavigate, budget, expenses, onViewReceipt }) => {
   const totalBudget = budget.total;
   const remain = totalBudget - totalSpent;
 
   const [selectedCategory, setSelectedCategory] = useState("");
   const chartRef = useRef(null);
+  const expenseListRef = useRef(null);
+  const serialMap = useSerialNumbers();
 
   const handleCategoryClick = (cat) => {
     setSelectedCategory(cat);
-    // Scroll to chart
     setTimeout(() => {
-      chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
   };
 
@@ -76,6 +78,67 @@ const Dashboard = ({ totalSpent, categorySummary, onNavigate, budget, expenses }
           </div>
         </Card>
       </div>
+
+      {/* Filtered Expense List */}
+      {selectedCategory && (
+        <div ref={expenseListRef}>
+          <Card title={`${selectedCategory} 지출 내역 (${chartExpenses.length}건)`}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm leading-none whitespace-nowrap">
+                <thead>
+                  <tr className="bg-gray-50 border-b text-gray-600 text-sm">
+                    <th className="py-2 px-2 text-center w-12">연번</th>
+                    <th className="py-2 px-2 text-left">적요</th>
+                    <th className="py-2 px-2 text-left w-24">날짜</th>
+                    <th className="py-2 px-2 text-right w-24">금액</th>
+                    <th className="py-2 px-2 text-center w-20">구매자</th>
+                    <th className="py-2 px-2 text-center w-16">영수증</th>
+                    <th className="py-2 px-2 text-center w-16">입금여부</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chartExpenses.length === 0 ? (
+                    <tr><td colSpan={7} className="py-8 text-center text-gray-400">내역이 없습니다.</td></tr>
+                  ) : (
+                    chartExpenses.map((e) => (
+                      <tr key={e.id} className="border-b hover:bg-gray-50 transition-colors">
+                        <td className="py-0.5 px-2 text-center font-mono text-gray-500 text-base leading-none">{serialMap[e.id] || "-"}</td>
+                        <td className="py-0.5 px-2 text-base leading-none">{e.description}</td>
+                        <td className="py-0.5 px-2 text-gray-500 text-base leading-none">{e.date ? e.date.substring(0, 10) : ""}</td>
+                        <td className="py-0.5 px-2 text-right font-bold text-gray-800 text-base leading-none">{formatKRW(e.amount)}</td>
+                        <td className="py-0.5 px-2 text-center text-gray-600 text-base leading-none">{e.purchaser}</td>
+                        <td className="py-0.5 px-2 text-center">
+                          {e.receiptUrl && e.receiptUrl.length > 5 ? (
+                            <button onClick={() => onViewReceipt && onViewReceipt(e.id)} className="text-blue-500 underline text-sm hover:text-blue-700">보기</button>
+                          ) : (
+                            <span className="text-gray-300 text-sm">-</span>
+                          )}
+                        </td>
+                        <td className="py-0.5 px-2 text-center">
+                          {e.reimbursed ? <span className="text-blue-600 font-bold text-base">O</span> : <span className="text-gray-300 font-bold text-base">X</span>}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                  {chartExpenses.length > 0 && (
+                    <tr className="border-t-2 border-gray-200 bg-blue-50">
+                      <td className="py-2 px-2"></td>
+                      <td className="py-2 px-2 text-blue-600 font-bold text-base text-center">합계</td>
+                      <td className="py-2 px-2"></td>
+                      <td className="py-2 px-2 text-right font-bold text-blue-600 text-base">
+                        {formatKRW(chartExpenses.reduce((sum, e) => sum + e.amount, 0))}
+                      </td>
+                      <td className="py-2 px-2"></td>
+                      <td className="py-2 px-2"></td>
+                      <td className="py-2 px-2"></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Category Breakdown */}
       <div className="bg-white border border-gray-200 rounded-2xl p-3 shadow-sm">

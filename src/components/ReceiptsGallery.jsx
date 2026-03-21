@@ -3,6 +3,9 @@ import { formatKRW, parseAmount } from '../utils/format';
 import Card from './Card';
 import { useSerialNumbers } from '../hooks/useSerialNumbers';
 
+const parseReceiptUrls = (receiptUrl) =>
+  receiptUrl ? receiptUrl.split('|').filter(Boolean) : [];
+
 const ReceiptsGallery = ({ expenses, onJumpToExpense, highlightId }) => {
   const withReceipts = expenses.filter((e) => e.receiptUrl);
   const serialMap = useSerialNumbers();
@@ -24,30 +27,58 @@ const ReceiptsGallery = ({ expenses, onJumpToExpense, highlightId }) => {
     }
   }, [highlightId]);
 
+  const openReceipt = (url) => {
+    if (url.startsWith('data:')) {
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(`<!DOCTYPE html><html><head><title>증빙</title></head><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;"><img src="${url}" style="max-width:100%;max-height:100vh;object-fit:contain;"></body></html>`);
+        win.document.close();
+      }
+    } else {
+      window.open(url, '_blank');
+    }
+  };
+
   const ReceiptCard = ({ e }) => {
     const serialNum = serialMap[e.id];
 
     return (
       <div key={e.id} id={`receipt-${e.id}`} className="border rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow transition-all duration-500">
-        {/* Image Area - Opens Link in New Tab */}
-        <div
-          className="aspect-video bg-gray-100 overflow-hidden relative group cursor-pointer"
-          onClick={() => window.open(e.receiptUrl, '_blank')}
-        >
-          <img
-            src={e.receiptUrl.includes("drive.google.com") && e.receiptUrl.includes("id=")
-              ? `https://drive.google.com/thumbnail?id=${new URL(e.receiptUrl).searchParams.get("id")}&sz=w800`
-              : e.receiptUrl}
-            alt={e.description || "receipt"}
-            className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
-            referrerPolicy="no-referrer"
-            loading="lazy"
-            onError={(ev) => { if (!ev.target.src.includes("export=view")) ev.target.src = e.receiptUrl; }}
-          />
-          <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-            <span className="bg-black/50 text-white px-2 py-1 rounded text-sm">원본 보기</span>
-          </div>
-        </div>
+        {/* Image Area - 다중 이미지 지원 */}
+        {(() => {
+          const urls = parseReceiptUrls(e.receiptUrl);
+          if (urls.length === 1) {
+            const url = urls[0];
+            const thumb = url.includes("drive.google.com") && url.includes("id=")
+              ? `https://drive.google.com/thumbnail?id=${new URL(url).searchParams.get("id")}&sz=w800`
+              : url;
+            return (
+              <div className="aspect-video bg-gray-100 overflow-hidden relative group cursor-pointer" onClick={() => openReceipt(url)}>
+                <img src={thumb} alt={e.description || "receipt"} className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" referrerPolicy="no-referrer" loading="lazy" onError={(ev) => { if (!ev.target.src.includes("export=view")) ev.target.src = url; }} />
+                <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <span className="bg-black/50 text-white px-2 py-1 rounded text-sm">원본 보기</span>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
+              {urls.map((url, idx) => {
+                const thumb = url.includes("drive.google.com") && url.includes("id=")
+                  ? `https://drive.google.com/thumbnail?id=${new URL(url).searchParams.get("id")}&sz=w400`
+                  : url;
+                return (
+                  <div key={idx} className="aspect-square bg-gray-100 overflow-hidden relative group cursor-pointer" onClick={() => openReceipt(url)}>
+                    <img src={thumb} alt={`${e.description || "receipt"} ${idx + 1}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" referrerPolicy="no-referrer" loading="lazy" />
+                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="bg-black/50 text-white px-1.5 py-0.5 rounded text-xs">{idx + 1}/{urls.length}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Text Area - Navigates to Expense */}
         <div
