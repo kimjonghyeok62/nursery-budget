@@ -49,7 +49,7 @@ const ExpenseItem = ({ item }) => {
 };
 
 
-const ByCategory = ({ categorySummary, expenses, onDelete, onEdit, filterCat, setFilterCat, highlightId, onToggleReimbursed, onViewReceipt, budget, categoryOrder = [] }) => {
+const ByCategory = ({ categorySummary, expenses, onDelete, onEdit, onCopy, filterCat, setFilterCat, highlightId, onToggleReimbursed, onViewReceipt, budget, categoryOrder = [] }) => {
   const filtered = filterCat ? expenses.filter((e) => e.category === filterCat) : expenses;
   const serialMap = useSerialNumbers();
   const expenses2025 = useExpenses2025();
@@ -247,16 +247,13 @@ const ByCategory = ({ categorySummary, expenses, onDelete, onEdit, filterCat, se
                       </td>
                       {/* 날짜: 스크롤 시 연번 뒤로 지나감 */}
                       <td className="py-0.5 px-2 text-gray-500 text-base leading-none whitespace-nowrap">{e.date ? e.date.substring(0, 10) : ""}</td>
-                      {/* 적요: sticky, 클릭 시 전체 표시 토글 */}
+                      {/* 적요: sticky, 클릭 시 복사(폼 자동입력) */}
                       <td
-                        className="py-0.5 px-2 text-base leading-snug cursor-pointer hover:text-blue-600 sticky left-10 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)] max-w-[45vw] md:max-w-xs lg:max-w-sm"
-                        onClick={() => setExpandedDescId(isExpanded ? null : e.id)}
-                        title={isExpanded ? "접기" : "전체 보기"}
+                        className="py-0.5 px-2 text-base leading-snug cursor-pointer hover:text-green-600 sticky left-10 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)] max-w-[45vw] md:max-w-xs lg:max-w-sm"
+                        onClick={() => onCopy && onCopy(e)}
+                        title="클릭하면 폼에 복사됩니다"
                       >
-                        {isExpanded
-                          ? <span className="whitespace-normal break-words text-blue-700">{e.description}</span>
-                          : <div className="truncate">{e.description}</div>
-                        }
+                        <div className="truncate">{e.description}</div>
                       </td>
                       {!filterCat && <td className="py-0.5 px-2 text-gray-700 text-base leading-none whitespace-nowrap">{e.category}</td>}
                       <td className={`py-0.5 px-2 text-right font-bold text-gray-800 text-base leading-none whitespace-nowrap ${e.receiptUrl ? 'cursor-pointer hover:text-blue-600' : ''}`} onClick={() => e.receiptUrl && onViewReceipt && onViewReceipt(e.id)}>{formatKRW(e.amount)}</td>
