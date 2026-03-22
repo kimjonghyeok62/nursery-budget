@@ -2,6 +2,8 @@ export const LOCAL_KEY = "nursery-expenses-2026";
 export const SHEET_ID = '1METL5eBui0qkLiwJHFYsk5dUuhIU_JG_jG5FxO0SyrA';
 export const CLOUD_META = "nursery-cloud-meta"; // Firebase 설정 저장
 export const GS_META = "nursery-gscript-meta"; // Apps Script 설정 저장
+export const IMGBB_META = "nursery-imgbb-meta"; // imgbb API 키 저장
+export const DEFAULT_IMGBB_KEY = import.meta.env.VITE_IMGBB_KEY || "";
 
 export const DEFAULT_BUDGET = {
   year: 2026,
@@ -18,7 +20,7 @@ export const DEFAULT_BUDGET = {
 
 export const CATEGORY_ORDER = DEFAULT_BUDGET.items.map((i) => i.key);
 
-export const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwfrn1_jfWmFhjr-D1cU8NAacEmR9vBsDS107gcXykMjtOgsrY9b7Op0vfPqskPx05D/exec";
+export const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_TYVxfjzfYTKkdXKvH7uGmHqLdEHYU7JhZ4cNN7ZPp03cgNmBISarMd_TBpollFfn/exec";
 export const DEFAULT_SCRIPT_TOKEN = "thank1234!!";
 
 export const MEMBERS_SHEET_INDEX = 6; // 7번째 시트

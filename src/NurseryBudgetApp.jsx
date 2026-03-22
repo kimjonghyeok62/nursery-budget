@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileUp, LineChart, Table2, CheckSquare, GalleryHorizontalEnd, Trash2, Plus, Save, RefreshCcw, Bug, CloudUpload, CloudDownload, Link as LinkIcon, KeyRound, Upload, Settings, Loader2, Pencil, X, Folder, Users, FileText, ChevronDown, ChevronUp, HeartHandshake } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { DEFAULT_BUDGET, CATEGORY_ORDER, CLOUD_META, GS_META, LOCAL_KEY } from "./constants";
+import { DEFAULT_BUDGET, CATEGORY_ORDER, CLOUD_META, GS_META, LOCAL_KEY, IMGBB_META, DEFAULT_IMGBB_KEY } from "./constants";
 import TabButton from "./components/TabButton";
 import ProgressBar from "./components/ProgressBar";
 import Card from "./components/Card";
@@ -21,7 +21,7 @@ import { useGScriptConfig } from './hooks/useGScriptConfig';
 import { useSerialNumbers } from './hooks/useSerialNumbers';
 import { useRecommendations } from './hooks/useRecommendations';
 import { groupBy } from './utils/collections';
-import { loadFirebaseCompat } from './utils/firebase';
+import { loadFirebaseCompat, uploadToFirebaseStorage } from './utils/firebase';
 import { gsFetch } from './utils/google';
 import { fileToDataUrl, urlToDataUrl, compressImage } from './utils/dataUrl';
 import { csvToRows, rowsToCsv } from './utils/csv';
@@ -134,6 +134,11 @@ export default function NurseryBudgetApp() {
     try { return JSON.parse(localStorage.getItem(CLOUD_META) || "null") || { projectId: "", apiKey: "", appId: "", authDomain: "", userId: "" }; } catch { return { projectId: "", apiKey: "", appId: "", authDomain: "", userId: "" }; }
   });
   const cloudRef = useRef({ unsub: null, updating: false });
+
+  // imgbb API key
+  const [imgbbKey, setImgbbKey] = useState(() => {
+    try { return localStorage.getItem(IMGBB_META) || DEFAULT_IMGBB_KEY; } catch { return DEFAULT_IMGBB_KEY; }
+  });
 
   // Google Apps Script config
   const [gsCfg, setGsCfg] = useGScriptConfig();
@@ -322,38 +327,54 @@ export default function NurseryBudgetApp() {
         let nextSerialBase = currentSerials.length > 0 ? Math.max(...currentSerials) + 1 : 1;
         let serialOffset = 0;
 
-        // 1) 이미지 업로드 체크
+        // 1) 이미지 업로드 체크 (파이프 구분 다중 URL 지원)
         for (const e of expenses) {
-          if (typeof e.receiptUrl === 'string' && (e.receiptUrl.startsWith("blob:") || e.receiptUrl.startsWith("data:"))) {
+          const rawUrl = typeof e.receiptUrl === 'string' ? e.receiptUrl : '';
+          const parts = rawUrl ? rawUrl.split('|').filter(Boolean) : [];
+          const hasPending = parts.some(p => p.startsWith("blob:") || p.startsWith("data:"));
+
+          if (hasPending) {
             try {
-              const conv = await urlToDataUrl(e.receiptUrl);
               const safeDesc = e.description ? e.description.replace(/[^\w가-힣_.-]/g, "_") : "receipt";
               const formattedAmount = parseAmount(e.amount).toLocaleString('ko-KR');
-
               let serialPrefix = "";
               if (serialMap[e.id]) {
                 serialPrefix = `${serialMap[e.id]}_`;
               } else {
-                // No serial found (new item), use optimistic serial
                 serialPrefix = `${nextSerialBase + serialOffset}_`;
                 serialOffset++;
               }
 
-              const filename = `${serialPrefix}${e.date}_${e.category}_${safeDesc}_${formattedAmount}원.png`;
-
-              const up = await gsFetch(gsCfg, "uploadReceipt", {
-                filename,
-                mimeType: conv.mime || "image/png",
-                dataUrl: conv.dataUrl,
-              });
-              const viewUrl = up.viewUrl || (up.fileId ? `https://drive.google.com/uc?export=view&id=${up.fileId}` : "") || (up.id ? `https://drive.google.com/uc?export=view&id=${up.id}` : "");
-              if (viewUrl) {
-                next.push({ ...e, receiptUrl: viewUrl, receiptDriveId: up.fileId || up.id || "" });
+              const converted = [];
+              let changed = false;
+              for (const part of parts) {
+                if (part.startsWith("blob:") || part.startsWith("data:")) {
+                  try {
+                    const conv = part.startsWith("data:") ? { dataUrl: part, mime: "image/jpeg" } : await urlToDataUrl(part);
+                    const filename = `${serialPrefix}${e.date}_${e.category}_${safeDesc}_${formattedAmount}원.png`;
+                    const up = await gsFetch(gsCfg, "uploadReceipt", {
+                      filename,
+                      mimeType: conv.mime || "image/png",
+                      dataUrl: conv.dataUrl,
+                    });
+                    const viewUrl = up.viewUrl || (up.fileId ? `https://drive.google.com/uc?export=view&id=${up.fileId}` : "") || (up.id ? `https://drive.google.com/uc?export=view&id=${up.id}` : "");
+                    if (viewUrl) { converted.push(viewUrl); changed = true; continue; }
+                  } catch (err) {
+                    console.warn("Auto upload fail", err);
+                  }
+                  // 업로드 실패 시: 로컬 상태는 원본 유지 (시트 저장 시 safe filter에서 제거됨)
+                  converted.push(part);
+                  continue;
+                }
+                converted.push(part);
+              }
+              if (changed) {
+                next.push({ ...e, receiptUrl: converted.join('|') });
                 hasUpdates = true;
                 continue;
               }
             } catch (err) {
-              console.warn("Auto upload fail", err);
+              console.warn("Auto upload fail (outer)", err);
             }
           }
           next.push(e);
@@ -365,8 +386,13 @@ export default function NurseryBudgetApp() {
           finalExpenses = next;
         }
 
-        // 2) 시트 저장
-        await gsFetch(gsCfg, "save", { expenses: finalExpenses });
+        // 2) 시트 저장 (data:/blob: URL은 셀 한도 초과 → 제거 후 저장)
+        const safeExpenses = finalExpenses.map(e => ({
+          ...e,
+          receiptUrl: (e.receiptUrl || '').split('|').filter(u => !u.startsWith('data:') && !u.startsWith('blob:')).join('|')
+        }));
+        console.log("[auto-save] safeExpenses receiptUrls:", safeExpenses.map(e => e.receiptUrl).filter(Boolean));
+      await gsFetch(gsCfg, "save", { expenses: safeExpenses });
       } catch (e) {
         console.warn("Auto save error", e);
       } finally {
@@ -430,6 +456,7 @@ export default function NurseryBudgetApp() {
 
   function addExpense(e) {
     e.preventDefault();
+    console.log("[addExpense] form.receiptUrl:", form.receiptUrl);
     const payload = {
       id: editingId || crypto.randomUUID(),
       date: form.date,
@@ -521,6 +548,19 @@ export default function NurseryBudgetApp() {
       receiptUrl: item.receiptUrl || ""
     });
     setEditingId(item.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function copyExpense(item) {
+    setForm({
+      date: item.date.substring(0, 10),
+      category: item.category,
+      description: item.description,
+      amount: String(item.amount),
+      purchaser: item.purchaser || "",
+      receiptUrl: "",
+    });
+    setEditingId(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -626,30 +666,68 @@ export default function NurseryBudgetApp() {
       // 항상 먼저 압축 (Drive 성공/실패 무관하게 폴백용으로 사용, 800px/0.45 품질로 소용량)
       const compressed = await compressImage(file, 800, 0.45);
 
+      const safeDesc = form.description ? form.description.replace(/[^\w가-힣_.-]/g, "_") : "receipt";
+      const formattedAmount = parseAmount(form.amount).toLocaleString('ko-KR');
+      let serialPrefix = "";
+      if (editingId && serialMap[editingId]) {
+        serialPrefix = `${serialMap[editingId]}_`;
+      } else {
+        let serverCount = expenses.length;
+        try {
+          if (gsOn && gsCfg.url) {
+            const listData = await gsFetch(gsCfg, "list", {});
+            if (listData && Array.isArray(listData.expenses)) serverCount = listData.expenses.length;
+          }
+        } catch (e) {
+          console.warn("Serial fetch failed, using local count", e);
+        }
+        serialPrefix = `${serverCount + 1}_`;
+      }
+      const filename = `${serialPrefix}${safeDesc}_${form.date}_${form.category}_${formattedAmount}원_${form.purchaser || "미지정"}.jpg`;
+
+      // 1순위: imgbb
+      console.log("[upload] imgbbKey:", imgbbKey ? "SET(" + imgbbKey.slice(0,8) + "...)" : "EMPTY");
+      if (imgbbKey) {
+        try {
+          const base64 = compressed.dataUrl.split(',')[1];
+          const fd = new FormData();
+          fd.append("key", imgbbKey);
+          fd.append("image", base64);
+          fd.append("name", filename.replace(/\.jpg$/, ""));
+          const res = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: fd });
+          const json = await res.json();
+          const viewUrl = json?.data?.display_url || json?.data?.url;
+          if (viewUrl) {
+            setForm((f) => {
+              const urls = f.receiptUrl ? f.receiptUrl.split('|').filter(Boolean) : [];
+              return { ...f, receiptUrl: [...urls, viewUrl].join('|') };
+            });
+            return;
+          }
+        } catch (err) {
+          console.warn("imgbb 업로드 실패", err);
+        }
+      }
+
+      // 2순위: Firebase Storage (cloudInfo가 있으면 시도)
+      if (cloudInfo?.projectId && cloudInfo?.apiKey) {
+        try {
+          const downloadUrl = await uploadToFirebaseStorage(cloudInfo, compressed.dataUrl, filename);
+          if (downloadUrl) {
+            setForm((f) => {
+              const urls = f.receiptUrl ? f.receiptUrl.split('|').filter(Boolean) : [];
+              return { ...f, receiptUrl: [...urls, downloadUrl].join('|') };
+            });
+            return;
+          }
+        } catch (err) {
+          console.warn("Firebase Storage 업로드 실패", err);
+        }
+      }
+
+      // 3순위: Apps Script Drive 업로드
       if (gsOn && gsCfg.url) {
         try {
-          const safeDesc = form.description ? form.description.replace(/[^\w가-힣_.-]/g, "_") : "receipt";
-          const formattedAmount = parseAmount(form.amount).toLocaleString('ko-KR');
-
-          let serialPrefix = "";
-          if (editingId && serialMap[editingId]) {
-            serialPrefix = `${serialMap[editingId]}_`;
-          } else {
-            let serverCount = expenses.length;
-            try {
-              const listData = await gsFetch(gsCfg, "list", {});
-              if (listData && Array.isArray(listData.expenses)) {
-                serverCount = listData.expenses.length;
-              }
-            } catch (e) {
-              console.warn("Serial fetch failed, using local count", e);
-            }
-            const nextSerial = serverCount + 1;
-            serialPrefix = `${nextSerial}_`;
-          }
-
-          const filename = `${serialPrefix}${safeDesc}_${form.date}_${form.category}_${formattedAmount}원_${form.purchaser || "미지정"}.jpg`;
-
           const res = await gsFetch(gsCfg, "uploadReceipt", {
             filename,
             mimeType: "image/jpeg",
@@ -833,8 +911,11 @@ export default function NurseryBudgetApp() {
                   const viewUrl = up.viewUrl || (up.fileId ? `https://drive.google.com/uc?export=view&id=${up.fileId}` : "") || "";
                   if (viewUrl) { converted.push(viewUrl); changed = true; continue; }
                 } catch (err) {
-                  console.warn("로컬 영수증 업로드 실패, 기존 URL 유지", err);
+                  console.warn("로컬 영수증 업로드 실패, 해당 영수증 제외 후 저장 진행", err);
                 }
+                // Drive 업로드 실패 시: data:/blob: URL은 시트에 저장 불가 (50,000자 초과) → 빈 문자열로 대체
+                changed = true;
+                continue;
               }
               converted.push(part);
             }
@@ -855,8 +936,12 @@ export default function NurseryBudgetApp() {
         }
       }
 
-      // 2) 최종 저장 (업데이트된 데이터 사용)
-      await gsFetch(gsCfg, "save", { expenses: finalExpenses });
+      // 2) 최종 저장 (data:/blob: URL은 셀 한도 초과 → 제거 후 저장)
+      const safeExpenses = finalExpenses.map(e => ({
+        ...e,
+        receiptUrl: (e.receiptUrl || '').split('|').filter(u => !u.startsWith('data:') && !u.startsWith('blob:')).join('|')
+      }));
+      await gsFetch(gsCfg, "save", { expenses: safeExpenses });
       alert("시트에 저장 완료");
     } catch (e) {
       alert("시트 저장 실패: " + e.message);
@@ -889,6 +974,7 @@ export default function NurseryBudgetApp() {
     expenses,
     onDelete: deleteExpense,
     onEdit: startEdit,
+    onCopy: copyExpense,
     filterCat,
     setFilterCat: handleNavigate,
     highlightId,
@@ -1308,7 +1394,25 @@ export default function NurseryBudgetApp() {
               */}
             </div>
 
-            {/* Data Actions Removed */}
+            {/* imgbb API 키 설정 */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <Upload size={14} className="text-orange-500" /> 영수증 이미지 호스팅 (imgbb)
+              </h3>
+              <div className="flex items-center gap-2">
+                <KeyRound size={16} className="text-gray-400 shrink-0" />
+                <input
+                  className="flex-1 rounded-xl border px-3 py-2 text-sm"
+                  placeholder="imgbb API 키 (api.imgbb.com에서 발급)"
+                  value={imgbbKey}
+                  onChange={(e) => {
+                    setImgbbKey(e.target.value);
+                    try { localStorage.setItem(IMGBB_META, e.target.value); } catch {}
+                  }}
+                />
+                {imgbbKey && <span className="text-xs text-green-600 font-medium shrink-0">✅ 설정됨</span>}
+              </div>
+            </div>
 
           </section>
         )}
