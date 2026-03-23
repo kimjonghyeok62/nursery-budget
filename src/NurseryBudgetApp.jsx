@@ -685,47 +685,8 @@ export default function NurseryBudgetApp() {
       }
       const filename = `${serialPrefix}${safeDesc}_${form.date}_${form.category}_${formattedAmount}원_${form.purchaser || "미지정"}.jpg`;
 
-      // 1순위: imgbb
-      console.log("[upload] imgbbKey:", imgbbKey ? "SET(" + imgbbKey.slice(0,8) + "...)" : "EMPTY");
-      if (imgbbKey) {
-        try {
-          const base64 = compressed.dataUrl.split(',')[1];
-          const fd = new FormData();
-          fd.append("key", imgbbKey);
-          fd.append("image", base64);
-          fd.append("name", filename.replace(/\.jpg$/, ""));
-          const res = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: fd });
-          const json = await res.json();
-          const viewUrl = json?.data?.display_url || json?.data?.url;
-          if (viewUrl) {
-            setForm((f) => {
-              const urls = f.receiptUrl ? f.receiptUrl.split('|').filter(Boolean) : [];
-              return { ...f, receiptUrl: [...urls, viewUrl].join('|') };
-            });
-            return;
-          }
-        } catch (err) {
-          console.warn("imgbb 업로드 실패", err);
-        }
-      }
-
-      // 2순위: Firebase Storage (cloudInfo가 있으면 시도)
-      if (cloudInfo?.projectId && cloudInfo?.apiKey) {
-        try {
-          const downloadUrl = await uploadToFirebaseStorage(cloudInfo, compressed.dataUrl, filename);
-          if (downloadUrl) {
-            setForm((f) => {
-              const urls = f.receiptUrl ? f.receiptUrl.split('|').filter(Boolean) : [];
-              return { ...f, receiptUrl: [...urls, downloadUrl].join('|') };
-            });
-            return;
-          }
-        } catch (err) {
-          console.warn("Firebase Storage 업로드 실패", err);
-        }
-      }
-
-      // 3순위: Apps Script Drive 업로드
+      // 1순위: Apps Script → Google Drive 업로드 (청소년부와 동일 방식)
+      let uploadedUrl = null;
       if (gsOn && gsCfg.url) {
         try {
           const res = await gsFetch(gsCfg, "uploadReceipt", {
@@ -734,22 +695,35 @@ export default function NurseryBudgetApp() {
             dataUrl: compressed.dataUrl,
           });
           const viewUrl = res.viewUrl || (res.fileId ? `https://drive.google.com/uc?export=view&id=${res.fileId}` : "") || (res.id ? `https://drive.google.com/uc?export=view&id=${res.id}` : "");
-          if (viewUrl) {
-            setForm((f) => {
-              const urls = f.receiptUrl ? f.receiptUrl.split('|').filter(Boolean) : [];
-              return { ...f, receiptUrl: [...urls, viewUrl].join('|') };
-            });
-            return;
-          }
+          if (viewUrl) uploadedUrl = viewUrl;
         } catch (err) {
           console.warn("Drive 업로드 실패", err);
+          alert("드라이브 업로드 실패: " + err.toString() + "\n(로컬 미리보기로 대체합니다)");
         }
       }
 
-      // fallback: data URL을 직접 저장 (새로고침 후에도 유지됨)
+      // 2순위 폴백: imgbb
+      if (!uploadedUrl && imgbbKey) {
+        try {
+          const base64 = compressed.dataUrl.split(',')[1];
+          const fd = new FormData();
+          fd.append("key", imgbbKey);
+          fd.append("image", base64);
+          fd.append("name", filename.replace(/\.jpg$/, ""));
+          const res = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: fd });
+          const json = await res.json();
+          uploadedUrl = json?.data?.display_url || json?.data?.url || null;
+        } catch (err) {
+          console.warn("imgbb 업로드 실패", err);
+        }
+      }
+
+      // 최종 폴백: blob URL (로컬 미리보기)
+      if (!uploadedUrl) uploadedUrl = URL.createObjectURL(file);
+
       setForm((f) => {
         const urls = f.receiptUrl ? f.receiptUrl.split('|').filter(Boolean) : [];
-        return { ...f, receiptUrl: [...urls, compressed.dataUrl].join('|') };
+        return { ...f, receiptUrl: [...urls, uploadedUrl].join('|') };
       });
 
     } finally {
