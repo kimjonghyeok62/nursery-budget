@@ -20,7 +20,7 @@ export const DEFAULT_BUDGET = {
 
 export const CATEGORY_ORDER = DEFAULT_BUDGET.items.map((i) => i.key);
 
-export const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_TYVxfjzfYTKkdXKvH7uGmHqLdEHYU7JhZ4cNN7ZPp03cgNmBISarMd_TBpollFfn/exec";
+export const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwecO-AS9Ze_mmhL0ft2ZABduBRxV5O9kqqhujY212TReS-VLM6jrg0bjG7o5cGpcnX/exec";
 export const DEFAULT_SCRIPT_TOKEN = "thank1234!!";
 
 export const MEMBERS_SHEET_INDEX = 6; // 7번째 시트
