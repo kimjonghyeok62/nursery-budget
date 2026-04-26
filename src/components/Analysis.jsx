@@ -92,16 +92,18 @@ const Analysis = ({
   const [isUploading, setIsUploading] = React.useState(false);
 
   const fellowshipLedger = useMemo(() => {
-    // 1. Sort by date ascending (oldest first)
+    // 1. Sort ascending for cumulative balance calculation
     const list = [...fellowshipData].sort((a, b) => a.date.localeCompare(b.date));
 
-    // 2. Add cumulative balance and serial number
+    // 2. Add cumulative balance and serial number (oldest=1)
     let balance = 0;
-    return list.map((item, index) => {
+    const withBalance = list.map((item, index) => {
       balance += (item.income || 0) - (item.expense || 0);
       return { ...item, balance, seq: index + 1 };
     });
-    // Removed .reverse() to keep ascending order as requested
+
+    // 3. Reverse for display: newest date at top
+    return withBalance.reverse();
   }, [fellowshipData]);
 
   // Effect to scroll to highlighted fellowship row
@@ -208,13 +210,13 @@ const Analysis = ({
 
   return (
     <Card>
-      <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+      <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
         <HeartHandshake className="text-blue-600" /> 교사 친목회
       </h3>
 
       {/* 친목회 입력 섹션 */}
       <section id="fellowship-input-section" className="mb-8 bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm">
-        <h4 className="text-lg font-semibold mb-4">친목회(수입,지출) 입력</h4>
+        <h4 className="text-xl font-semibold mb-4">친목회(수입,지출) 입력</h4>
         <form onSubmit={handleAddFellowship} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
             <div className="col-span-1">
@@ -279,7 +281,7 @@ const Analysis = ({
       {/* 친목회 장부 섹션 */}
       <section className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between mb-4">
-          <h4 className="text-lg font-semibold">친목회(수입,지출) 장부정리</h4>
+          <h4 className="text-xl font-semibold">친목회(수입,지출) 장부정리</h4>
           <div className="flex items-center gap-2">
             <button
               onClick={onSaveFellowship}
@@ -300,7 +302,7 @@ const Analysis = ({
         </div>
 
         <div className="overflow-x-auto -mx-4">
-          <table className="w-full text-sm border-collapse min-w-[800px]">
+          <table className="w-full text-base border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50 border-y border-slate-200 text-gray-500 font-medium">
                 <th className="px-3 py-2 text-center w-12">#</th>
@@ -326,7 +328,7 @@ const Analysis = ({
                     id={`fellowship-row-${item.id}`}
                     className="border-b border-gray-100 hover:bg-slate-50 transition-colors"
                   >
-                    <td className="px-3 py-2 text-center text-gray-400 font-mono text-xs">{item.seq}</td>
+                    <td className="px-3 py-2 text-center text-gray-400 font-mono text-sm">{item.seq}</td>
                     <td
                       className={`px-3 py-2 text-center text-gray-500 whitespace-nowrap ${item.receiptUrl ? 'cursor-pointer hover:text-indigo-600 hover:underline' : ''}`}
                       onClick={() => {
@@ -381,7 +383,7 @@ const Analysis = ({
                         </button>
                       ) : "—"}
                     </td>
-                    <td className="px-3 py-2 text-gray-500 text-xs truncate max-w-[100px]" title={item.remarks}>{item.remarks}</td>
+                    <td className="px-3 py-2 text-gray-500 text-sm truncate max-w-[100px]" title={item.remarks}>{item.remarks}</td>
                     <td className="px-3 py-2 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button onClick={() => startEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="수정">
@@ -403,7 +405,7 @@ const Analysis = ({
       {/* 친목회 영수증 갤러리 섹션 */}
       <section className="mt-12 bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h4 className="text-lg font-semibold flex items-center gap-2">
+          <h4 className="text-xl font-semibold flex items-center gap-2">
             📸 친목회 영수증 갤러리
             <span className="text-xs font-normal text-gray-400">({fellowshipWithReceipts.length}건)</span>
           </h4>
