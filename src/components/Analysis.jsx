@@ -27,7 +27,11 @@ const Analysis = ({
   onSaveFellowship
 }) => {
   const [editingId, setEditingId] = React.useState(null);
-  const fellowshipWithReceipts = useMemo(() => fellowshipData.filter((e) => e.receiptUrl), [fellowshipData]);
+  const fellowshipWithReceipts = useMemo(() =>
+    [...fellowshipData]
+      .filter((e) => e.receiptUrl)
+      .sort((a, b) => b.date.localeCompare(a.date)),
+  [fellowshipData]);
 
   const ReceiptCard = ({ e }) => {
     // Find the index in sorted fellowshipData to match ledger #
