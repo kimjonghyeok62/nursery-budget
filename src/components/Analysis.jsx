@@ -62,21 +62,23 @@ const Analysis = ({
     const idx = sorted.findIndex(item => item.id === e.id);
     const serialNum = idx !== -1 ? idx + 1 : null;
 
+    const driveId = e.receiptUrl?.includes("drive.google.com") && e.receiptUrl.includes("id=") ? new URL(e.receiptUrl).searchParams.get("id") : null;
+    const thumbSrc = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : e.receiptUrl;
+    const lightboxSrc = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w1920` : e.receiptUrl;
+
     return (
       <div key={e.id} id={`receipt-${e.id}`} className="border rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow transition-all duration-500">
         <div
           className="aspect-video bg-gray-100 overflow-hidden relative group cursor-pointer"
-          onClick={() => openReceipt(e.receiptUrl)}
+          onClick={() => openReceipt(lightboxSrc)}
         >
           <img
-            src={e.receiptUrl.includes("drive.google.com") && e.receiptUrl.includes("id=")
-              ? `https://drive.google.com/thumbnail?id=${new URL(e.receiptUrl).searchParams.get("id")}&sz=w800`
-              : e.receiptUrl}
+            src={thumbSrc}
             alt={e.description || "receipt"}
             className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
             referrerPolicy="no-referrer"
             loading="lazy"
-            onError={(ev) => { if (!ev.target.src.includes("export=view")) ev.target.src = e.receiptUrl; }}
+            onError={(ev) => { if (!ev.target.src.includes("export=view")) ev.target.src = thumbSrc; }}
           />
           <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <span className="bg-black/50 text-white px-2 py-1 rounded text-sm">원본 보기</span>
