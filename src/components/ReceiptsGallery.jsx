@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { formatKRW, parseAmount } from '../utils/format';
 import Card from './Card';
 import { useSerialNumbers } from '../hooks/useSerialNumbers';
+import { resolveReceiptUrl } from '../utils/receiptStorage';
 
 const parseReceiptUrls = (receiptUrl) =>
   receiptUrl ? receiptUrl.split('|').filter(Boolean) : [];
@@ -27,15 +28,17 @@ const ReceiptsGallery = ({ expenses, onJumpToExpense, highlightId }) => {
     }
   }, [highlightId]);
 
-  const openReceipt = (url) => {
-    if (url.startsWith('data:')) {
+  const openReceipt = async (url) => {
+    const resolved = await resolveReceiptUrl(url);
+    if (!resolved) return;
+    if (resolved.startsWith('data:')) {
       const win = window.open('', '_blank');
       if (win) {
-        win.document.write(`<!DOCTYPE html><html><head><title>증빙</title></head><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;"><img src="${url}" style="max-width:100%;max-height:100vh;object-fit:contain;"></body></html>`);
+        win.document.write(`<!DOCTYPE html><html><head><title>증빙</title></head><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;"><img src="${resolved}" style="max-width:100%;max-height:100vh;object-fit:contain;"></body></html>`);
         win.document.close();
       }
     } else {
-      window.open(url, '_blank');
+      window.open(resolved, '_blank');
     }
   };
 
