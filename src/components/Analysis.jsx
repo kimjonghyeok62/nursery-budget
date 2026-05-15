@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { formatKRW, parseAmount } from '../utils/format';
 import { CATEGORY_ORDER as DEFAULT_CATEGORY_ORDER } from '../constants';
 import Card from './Card';
@@ -17,6 +17,21 @@ const COLORS = [
   '#ec4899', // pink-500
 ];
 
+const Lightbox = ({ url, onClose }) => {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85" onClick={onClose}>
+      <button className="absolute top-4 right-4 text-white text-3xl font-bold leading-none" onClick={onClose} aria-label="닫기">×</button>
+      <img src={url} alt="영수증 원본" className="max-w-full max-h-screen object-contain rounded shadow-2xl" onClick={(e) => e.stopPropagation()} />
+    </div>
+  );
+};
+
 const Analysis = ({
   expenses,
   onJumpToExpense,
@@ -28,6 +43,17 @@ const Analysis = ({
   onSaveFellowship
 }) => {
   const [editingId, setEditingId] = React.useState(null);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+
+  const openReceipt = async (url) => {
+    const resolved = await resolveReceiptUrl(url);
+    if (!resolved) return;
+    if (resolved.startsWith('data:') || resolved.startsWith('blob:')) {
+      setLightboxUrl(resolved);
+    } else {
+      window.open(resolved, '_blank', 'noopener,noreferrer');
+    }
+  };
   const fellowshipWithReceipts = useMemo(() =>
     [...fellowshipData]
       .filter((e) => e.receiptUrl)
@@ -44,7 +70,7 @@ const Analysis = ({
       <div key={e.id} id={`receipt-${e.id}`} className="border rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow transition-all duration-500">
         <div
           className="aspect-video bg-gray-100 overflow-hidden relative group cursor-pointer"
-          onClick={async () => { const win = window.open('', '_blank'); if (!win) return; win.document.write(`<!DOCTYPE html><html><head><title>증빙</title></head><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;"><span style="color:#fff">로딩 중...</span></body></html>`); const resolved = await resolveReceiptUrl(e.receiptUrl); if (!resolved) { win.close(); return; } if (resolved.startsWith('data:')) { win.document.body.innerHTML = `<img src="${resolved}" style="max-width:100%;max-height:100vh;object-fit:contain;">`; } else { win.location.href = resolved; } }}
+          onClick={() => openReceipt(e.receiptUrl)}
         >
           <img
             src={e.receiptUrl.includes("drive.google.com") && e.receiptUrl.includes("id=")
@@ -214,6 +240,8 @@ const Analysis = ({
   };
 
   return (
+    <>
+    {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     <Card>
       <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
         <HeartHandshake className="text-blue-600" /> 교사 친목회
@@ -435,6 +463,7 @@ const Analysis = ({
         )}
       </section>
     </Card>
+    </>
   );
 };
 
