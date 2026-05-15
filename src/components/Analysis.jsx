@@ -44,7 +44,7 @@ const Analysis = ({
       <div key={e.id} id={`receipt-${e.id}`} className="border rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow transition-all duration-500">
         <div
           className="aspect-video bg-gray-100 overflow-hidden relative group cursor-pointer"
-          onClick={async () => { const resolved = await resolveReceiptUrl(e.receiptUrl); if (resolved?.startsWith('data:')) { const win = window.open('', '_blank'); if (win) { win.document.write(`<!DOCTYPE html><html><head><title>증빙</title></head><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;"><img src="${resolved}" style="max-width:100%;max-height:100vh;object-fit:contain;"></body></html>`); win.document.close(); } } else if (resolved) { window.open(resolved, '_blank'); } }}
+          onClick={async () => { const win = window.open('', '_blank'); if (!win) return; win.document.write(`<!DOCTYPE html><html><head><title>증빙</title></head><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;"><span style="color:#fff">로딩 중...</span></body></html>`); const resolved = await resolveReceiptUrl(e.receiptUrl); if (!resolved) { win.close(); return; } if (resolved.startsWith('data:')) { win.document.body.innerHTML = `<img src="${resolved}" style="max-width:100%;max-height:100vh;object-fit:contain;">`; } else { win.location.href = resolved; } }}
         >
           <img
             src={e.receiptUrl.includes("drive.google.com") && e.receiptUrl.includes("id=")

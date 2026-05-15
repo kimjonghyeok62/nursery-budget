@@ -29,16 +29,16 @@ const ReceiptsGallery = ({ expenses, onJumpToExpense, highlightId }) => {
   }, [highlightId]);
 
   const openReceipt = async (url) => {
+    // window.open은 반드시 동기(클릭 이벤트 체인 안)에서 호출해야 팝업 차단을 피할 수 있음
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><title>증빙</title></head><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;"><span style="color:#fff">로딩 중...</span></body></html>`);
     const resolved = await resolveReceiptUrl(url);
-    if (!resolved) return;
+    if (!resolved) { win.close(); return; }
     if (resolved.startsWith('data:')) {
-      const win = window.open('', '_blank');
-      if (win) {
-        win.document.write(`<!DOCTYPE html><html><head><title>증빙</title></head><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;"><img src="${resolved}" style="max-width:100%;max-height:100vh;object-fit:contain;"></body></html>`);
-        win.document.close();
-      }
+      win.document.body.innerHTML = `<img src="${resolved}" style="max-width:100%;max-height:100vh;object-fit:contain;">`;
     } else {
-      window.open(resolved, '_blank');
+      win.location.href = resolved;
     }
   };
 
