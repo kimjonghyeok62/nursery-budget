@@ -25,9 +25,9 @@ const Lightbox = ({ url, onClose }) => {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85" onClick={onClose}>
-      <button className="absolute top-4 right-4 text-white text-3xl font-bold leading-none" onClick={onClose} aria-label="닫기">×</button>
-      <img src={url} alt="영수증 원본" className="max-w-full max-h-screen object-contain rounded shadow-2xl" onClick={(e) => e.stopPropagation()} />
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+      <button style={{ position: 'absolute', top: 16, right: 20, color: '#fff', fontSize: 36, fontWeight: 'bold', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }} onClick={onClose} aria-label="닫기">×</button>
+      <img src={url} alt="영수증 원본" style={{ maxWidth: '100%', maxHeight: '100vh', objectFit: 'contain', borderRadius: 8 }} referrerPolicy="no-referrer" onClick={(e) => e.stopPropagation()} />
     </div>
   );
 };
@@ -48,11 +48,7 @@ const Analysis = ({
   const openReceipt = async (url) => {
     const resolved = await resolveReceiptUrl(url);
     if (!resolved) return;
-    if (resolved.startsWith('data:') || resolved.startsWith('blob:')) {
-      setLightboxUrl(resolved);
-    } else {
-      window.open(resolved, '_blank', 'noopener,noreferrer');
-    }
+    setLightboxUrl(resolved);
   };
   const fellowshipWithReceipts = useMemo(() =>
     [...fellowshipData]
