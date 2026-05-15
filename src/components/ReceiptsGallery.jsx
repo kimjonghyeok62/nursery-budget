@@ -60,7 +60,6 @@ const ReceiptsGallery = ({ expenses, onJumpToExpense, highlightId }) => {
     if (resolved.startsWith('data:') || resolved.startsWith('blob:')) {
       setLightboxUrl(resolved);
     } else {
-      // Google Drive 등 외부 URL은 새 탭으로
       window.open(resolved, '_blank', 'noopener,noreferrer');
     }
   };
