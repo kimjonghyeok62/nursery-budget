@@ -3,6 +3,7 @@ import { formatKRW, parseAmount } from '../utils/format';
 import Card from './Card';
 import { useSerialNumbers } from '../hooks/useSerialNumbers';
 import { resolveReceiptUrl } from '../utils/receiptStorage';
+import ReceiptImg from './ReceiptImg';
 
 const parseReceiptUrls = (receiptUrl) =>
   receiptUrl ? receiptUrl.split('|').filter(Boolean) : [];
@@ -16,18 +17,19 @@ const Lightbox = ({ url, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85"
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={onClose}
     >
       <button
-        className="absolute top-4 right-4 text-white text-3xl font-bold leading-none"
+        style={{ position: 'absolute', top: 16, right: 20, color: '#fff', fontSize: 36, fontWeight: 'bold', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}
         onClick={onClose}
         aria-label="닫기"
       >×</button>
       <img
         src={url}
         alt="영수증 원본"
-        className="max-w-full max-h-screen object-contain rounded shadow-2xl"
+        style={{ maxWidth: '100%', maxHeight: '100vh', objectFit: 'contain', borderRadius: 8 }}
+        referrerPolicy="no-referrer"
         onClick={(e) => e.stopPropagation()}
       />
     </div>
@@ -54,14 +56,11 @@ const ReceiptsGallery = ({ expenses, onJumpToExpense, highlightId }) => {
     }
   }, [highlightId]);
 
+  // 모든 URL 타입(local:, data:, blob:, Google Drive)을 라이트박스로 표시
   const openReceipt = async (url) => {
     const resolved = await resolveReceiptUrl(url);
     if (!resolved) return;
-    if (resolved.startsWith('data:') || resolved.startsWith('blob:')) {
-      setLightboxUrl(resolved);
-    } else {
-      window.open(resolved, '_blank', 'noopener,noreferrer');
-    }
+    setLightboxUrl(resolved);
   };
 
   const ReceiptCard = ({ e }) => {
@@ -78,7 +77,7 @@ const ReceiptsGallery = ({ expenses, onJumpToExpense, highlightId }) => {
               : url;
             return (
               <div className="aspect-video bg-gray-100 overflow-hidden relative group cursor-pointer" onClick={() => openReceipt(url)}>
-                <img src={thumb} alt={e.description || "receipt"} className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" referrerPolicy="no-referrer" loading="lazy" onError={(ev) => { if (!ev.target.src.includes("export=view")) ev.target.src = url; }} />
+                <ReceiptImg src={thumb} alt={e.description || "receipt"} className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" onError={(ev) => { if (!ev.target.src?.includes("export=view")) ev.target.src = url; }} />
                 <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <span className="bg-black/50 text-white px-2 py-1 rounded text-sm">원본 보기</span>
                 </div>
@@ -93,7 +92,7 @@ const ReceiptsGallery = ({ expenses, onJumpToExpense, highlightId }) => {
                   : url;
                 return (
                   <div key={idx} className="aspect-square bg-gray-100 overflow-hidden relative group cursor-pointer" onClick={() => openReceipt(url)}>
-                    <img src={thumb} alt={`${e.description || "receipt"} ${idx + 1}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" referrerPolicy="no-referrer" loading="lazy" />
+                    <ReceiptImg src={thumb} alt={`${e.description || "receipt"} ${idx + 1}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                     <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <span className="bg-black/50 text-white px-1.5 py-0.5 rounded text-xs">{idx + 1}/{urls.length}</span>
                     </div>
