@@ -535,12 +535,12 @@ export default function Attendance({ gsCfg, onJumpToTab, initialMembers = [], in
 
             // Reconstruct records based on CURRENT sorted members to ensure strict sync
             const studentsForSync = currentMembers.filter(m => m.type === '학생').sort((a, b) => {
-                const groupComp = (a.group || "").localeCompare(b.group || "");
+                const groupComp = String(a.group ?? "").localeCompare(String(b.group ?? ""));
                 if (groupComp !== 0) return groupComp;
                 return (a.name || "").localeCompare(b.name || "");
             });
             const teachersForSync = currentMembers.filter(m => m.type === '선생님').sort((a, b) => {
-                const groupComp = (a.group || "").localeCompare(b.group || "");
+                const groupComp = String(a.group ?? "").localeCompare(String(b.group ?? ""));
                 if (groupComp !== 0) return groupComp;
                 return (a.name || "").localeCompare(b.name || "");
             });
@@ -732,7 +732,7 @@ export default function Attendance({ gsCfg, onJumpToTab, initialMembers = [], in
 
     const sortedStudents = useMemo(() => {
         return members.filter(m => m.type === '학생').sort((a, b) => {
-            const groupComp = (a.group || "").localeCompare(b.group || "");
+            const groupComp = String(a.group ?? "").localeCompare(String(b.group ?? ""));
             if (groupComp !== 0) return groupComp;
             return (a.name || "").localeCompare(b.name || "");
         });
@@ -740,12 +740,12 @@ export default function Attendance({ gsCfg, onJumpToTab, initialMembers = [], in
 
     const sortedAttendanceMembers = useMemo(() => {
         const students = members.filter(m => m.type === '학생').sort((a, b) => {
-            const groupComp = (a.group || "").localeCompare(b.group || "");
+            const groupComp = String(a.group ?? "").localeCompare(String(b.group ?? ""));
             if (groupComp !== 0) return groupComp;
             return (a.name || "").localeCompare(b.name || "");
         });
         const teachers = members.filter(m => m.type === '선생님').sort((a, b) => {
-            const groupComp = (a.group || "").localeCompare(b.group || "");
+            const groupComp = String(a.group ?? "").localeCompare(String(b.group ?? ""));
             if (groupComp !== 0) return groupComp;
             return (a.name || "").localeCompare(b.name || "");
         });
@@ -1550,7 +1550,7 @@ export default function Attendance({ gsCfg, onJumpToTab, initialMembers = [], in
                         </colgroup>
                         <tbody>
                             {members.filter(m => m.type === '선생님').sort((a, b) => {
-                                const groupComp = (a.group || "").localeCompare(b.group || "");
+                                const groupComp = String(a.group ?? "").localeCompare(String(b.group ?? ""));
                                 if (groupComp !== 0) return groupComp;
                                 return (a.name || "").localeCompare(b.name || "");
                             }).map((m, index) => (
@@ -1646,7 +1646,7 @@ export default function Attendance({ gsCfg, onJumpToTab, initialMembers = [], in
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {members.filter(m => m.photoUrl).sort((a, b) => {
-                        const groupComp = (a.group || "").localeCompare(b.group || "");
+                        const groupComp = String(a.group ?? "").localeCompare(String(b.group ?? ""));
                         if (groupComp !== 0) return groupComp;
                         return (a.name || "").localeCompare(b.name || "");
                     }).map(m => (
