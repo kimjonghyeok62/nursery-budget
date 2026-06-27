@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileUp, LineChart, Table2, CheckSquare, GalleryHorizontalEnd, Trash2, Plus, Save, RefreshCcw, Bug, CloudUpload, CloudDownload, Link as LinkIcon, KeyRound, Upload, Settings, Loader2, Pencil, X, Folder, Users, FileText, ChevronDown, ChevronUp, HeartHandshake } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { DEFAULT_BUDGET, CATEGORY_ORDER, CLOUD_META, GS_META, LOCAL_KEY, IMGBB_META, DEFAULT_IMGBB_KEY, GOOGLE_CLIENT_ID } from "./constants";
+import { DEFAULT_BUDGET, CATEGORY_ORDER, CLOUD_META, GS_META, LOCAL_KEY, IMGBB_META, DEFAULT_IMGBB_KEY } from "./constants";
 import TabButton from "./components/TabButton";
 import ProgressBar from "./components/ProgressBar";
 import Card from "./components/Card";
@@ -22,7 +22,6 @@ import { useSerialNumbers } from './hooks/useSerialNumbers';
 import { useRecommendations } from './hooks/useRecommendations';
 import { groupBy } from './utils/collections';
 import { loadFirebaseCompat, uploadToFirebaseStorage } from './utils/firebase';
-import { gisSignOut } from './utils/googleAuth';
 import { gsFetch } from './utils/google';
 import { fileToDataUrl, urlToDataUrl, compressImage } from './utils/dataUrl';
 import { csvToRows, rowsToCsv } from './utils/csv';
@@ -54,51 +53,54 @@ function boldAmounts(text) {
 
 export default function NurseryBudgetApp() {
   // Auth State
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authRole, setAuthRole] = useState("full"); // 'full' or 'partial'
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [googleUser, setGoogleUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('nursery_auth_v1') === 'true');
+  const [authRole] = useState("full");
+  const [authError, setAuthError] = useState('');
 
-  const googleClientId = GOOGLE_CLIENT_ID;
-
-  // 세션 복원 (새로고침 후에도 유지)
+  // PKCE 콜백 처리 (Google → ?code= 리다이렉트)
   useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem('nursery_google_user');
-      if (saved) {
-        const user = JSON.parse(saved);
-        setGoogleUser(user);
-        setIsAuthenticated(true);
-      }
-    } catch { /* ignore */ }
+    localStorage.removeItem('nursery_auth'); // 이전 버전 정리
+
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!code) return;
+
+    const verifier = sessionStorage.getItem('pkce_verifier');
+    sessionStorage.removeItem('pkce_verifier');
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (!verifier) {
+      setAuthError('인증 세션이 만료됐습니다. 다시 시도해주세요.');
+      return;
+    }
+
+    const redirectUri = sessionStorage.getItem('pkce_redirect_uri') || `${window.location.origin}/auth/callback`;
+    sessionStorage.removeItem('pkce_redirect_uri');
+
+    fetch('/api/auth-pkce', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, code_verifier: verifier, redirect_uri: redirectUri }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          setIsAuthenticated(true);
+          localStorage.setItem('nursery_auth_v1', 'true');
+          if (data.email) localStorage.setItem('nursery_auth_email', data.email);
+          if (data.name) localStorage.setItem('nursery_auth_name', data.name);
+        } else {
+          setAuthError(data.error || '로그인에 실패했습니다.');
+        }
+      })
+      .catch(() => setAuthError('인증 처리 중 오류가 발생했습니다.'));
   }, []);
 
-  const handleGoogleLoginSuccess = async (user) => {
-    try {
-      setIsAuthLoading(true);
-      // GAS가 연결돼 있으면 이메일로 허용 여부 확인
-      if (gsCfg.url) {
-        const res = await gsFetch(gsCfg, 'verifyGoogleUser', { email: user.email }).catch(() => null);
-        if (res?.valid === false) {
-          alert("접근 권한이 없는 계정입니다. 관리자에게 문의하세요.\n(" + user.email + ")");
-          return;
-        }
-        if (res?.role) setAuthRole(res.role);
-      }
-      sessionStorage.setItem('nursery_google_user', JSON.stringify(user));
-      setGoogleUser(user);
-      setIsAuthenticated(true);
-    } finally {
-      setIsAuthLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await gisSignOut();
-    sessionStorage.removeItem('nursery_google_user');
-    setGoogleUser(null);
+  const handleLogout = () => {
     setIsAuthenticated(false);
-    setAuthRole("full");
+    localStorage.removeItem('nursery_auth_v1');
+    localStorage.removeItem('nursery_auth_email');
+    localStorage.removeItem('nursery_auth_name');
   };
 
   const [tab, setTab] = useState("dashboard");
@@ -1266,15 +1268,7 @@ export default function NurseryBudgetApp() {
 
 
   if (!isAuthenticated) {
-    return (
-      <>
-        <Login
-          clientId={googleClientId}
-          onSuccess={handleGoogleLoginSuccess}
-          loading={isAuthLoading}
-        />
-      </>
-    );
+    return <Login initialError={authError} />;
   }
 
   return (
@@ -1297,20 +1291,13 @@ export default function NurseryBudgetApp() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {googleUser && (
-              <div className="flex items-center gap-2">
-                {googleUser.photoURL && (
-                  <img src={googleUser.photoURL} alt="" className="w-8 h-8 rounded-full border border-gray-200" referrerPolicy="no-referrer" />
-                )}
-                <button
-                  onClick={handleLogout}
-                  className="hidden sm:block text-xs text-gray-500 hover:text-red-500 transition-colors"
-                  title="로그아웃"
-                >
-                  로그아웃
-                </button>
-              </div>
-            )}
+            <button
+              onClick={handleLogout}
+              className="hidden sm:block text-xs text-gray-500 hover:text-red-500 transition-colors"
+              title="로그아웃"
+            >
+              로그아웃
+            </button>
             <button className="px-3 py-3 rounded-xl border bg-white hover:bg-gray-50 text-gray-600" onClick={() => setShowConfig(prev => !prev)}>
               <Settings size={20} className={isSyncing ? "animate-spin text-blue-600" : ""} />
             </button>
