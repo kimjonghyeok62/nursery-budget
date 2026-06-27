@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileUp, LineChart, Table2, CheckSquare, GalleryHorizontalEnd, Trash2, Plus, Save, RefreshCcw, Bug, CloudUpload, CloudDownload, Link as LinkIcon, KeyRound, Upload, Settings, Loader2, Pencil, X, Folder, Users, FileText, ChevronDown, ChevronUp, HeartHandshake } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { DEFAULT_BUDGET, CATEGORY_ORDER, CLOUD_META, GS_META, LOCAL_KEY, IMGBB_META, DEFAULT_IMGBB_KEY, GOOGLE_AUTH_META } from "./constants";
+import { DEFAULT_BUDGET, CATEGORY_ORDER, CLOUD_META, GS_META, LOCAL_KEY, IMGBB_META, DEFAULT_IMGBB_KEY, GOOGLE_CLIENT_ID } from "./constants";
 import TabButton from "./components/TabButton";
 import ProgressBar from "./components/ProgressBar";
 import Card from "./components/Card";
@@ -59,10 +59,7 @@ export default function NurseryBudgetApp() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [googleUser, setGoogleUser] = useState(null);
 
-  // Google OAuth Client ID
-  const [googleClientId, setGoogleClientId] = useState(() => {
-    try { return localStorage.getItem(GOOGLE_AUTH_META) || ""; } catch { return ""; }
-  });
+  const googleClientId = GOOGLE_CLIENT_ID;
 
   // 세션 복원 (새로고침 후에도 유지)
   useEffect(() => {
@@ -1276,22 +1273,6 @@ export default function NurseryBudgetApp() {
           onSuccess={handleGoogleLoginSuccess}
           loading={isAuthLoading}
         />
-        {/* Client ID 미설정 시 설정 입력 영역 */}
-        {!googleClientId && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-full max-w-sm px-4">
-            <div className="bg-white border border-gray-200 rounded-xl shadow p-4 space-y-2">
-              <p className="text-xs text-gray-500 font-medium">Google OAuth Client ID 입력</p>
-              <input
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="xxxx.apps.googleusercontent.com"
-                onBlur={e => {
-                  const v = e.target.value.trim();
-                  if (v) { localStorage.setItem(GOOGLE_AUTH_META, v); setGoogleClientId(v); }
-                }}
-              />
-            </div>
-          </div>
-        )}
       </>
     );
   }
@@ -1344,27 +1325,6 @@ export default function NurseryBudgetApp() {
         {/* Google Apps Script (Drive/Sheets) 동기화 */}
         {showConfig && (
           <section className="mb-6 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm animate-in fade-in slide-in-from-top-2 space-y-6">
-
-            {/* Google 로그인 설정 */}
-            <div>
-              <h2 className="text-lg font-semibold mb-3">Google 로그인 설정</h2>
-              <div className="space-y-2">
-                <label className="text-sm text-gray-600">OAuth 2.0 Client ID</label>
-                <input
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="xxxx.apps.googleusercontent.com"
-                  value={googleClientId}
-                  onChange={e => {
-                    const v = e.target.value.trim();
-                    setGoogleClientId(v);
-                    localStorage.setItem(GOOGLE_AUTH_META, v);
-                  }}
-                />
-                <p className="text-xs text-gray-400">
-                  Google Cloud Console → API 및 서비스 → 사용자 인증 정보 → OAuth 2.0 클라이언트 ID
-                </p>
-              </div>
-            </div>
 
             {/* Google Sync Settings (Inputs Hidden for Auto-Config) */}
             <div>
