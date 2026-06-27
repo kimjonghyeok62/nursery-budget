@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileUp, LineChart, Table2, CheckSquare, GalleryHorizontalEnd, Trash2, Plus, Save, RefreshCcw, Bug, CloudUpload, CloudDownload, Link as LinkIcon, KeyRound, Upload, Settings, Loader2, Pencil, X, Folder, Users, FileText, ChevronDown, ChevronUp, HeartHandshake } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { DEFAULT_BUDGET, CATEGORY_ORDER, CLOUD_META, GS_META, LOCAL_KEY, IMGBB_META, DEFAULT_IMGBB_KEY } from "./constants";
+import { DEFAULT_BUDGET, CATEGORY_ORDER, CLOUD_META, GS_META, LOCAL_KEY } from "./constants";
 import TabButton from "./components/TabButton";
 import ProgressBar from "./components/ProgressBar";
 import Card from "./components/Card";
@@ -139,11 +139,6 @@ export default function NurseryBudgetApp() {
     try { return JSON.parse(localStorage.getItem(CLOUD_META) || "null") || { projectId: "", apiKey: "", appId: "", authDomain: "", userId: "" }; } catch { return { projectId: "", apiKey: "", appId: "", authDomain: "", userId: "" }; }
   });
   const cloudRef = useRef({ unsub: null, updating: false });
-
-  // imgbb API key
-  const [imgbbKey, setImgbbKey] = useState(() => {
-    try { return localStorage.getItem(IMGBB_META) || DEFAULT_IMGBB_KEY; } catch { return DEFAULT_IMGBB_KEY; }
-  });
 
   // Google Apps Script config
   const [gsCfg, setGsCfg] = useGScriptConfig();
@@ -707,23 +702,7 @@ export default function NurseryBudgetApp() {
         }
       }
 
-      // 2순위 폴백: imgbb
-      if (!uploadedUrl && imgbbKey) {
-        try {
-          const base64 = compressed.dataUrl.split(',')[1];
-          const fd = new FormData();
-          fd.append("key", imgbbKey);
-          fd.append("image", base64);
-          fd.append("name", filename.replace(/\.jpg$/, ""));
-          const res = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: fd });
-          const json = await res.json();
-          uploadedUrl = json?.data?.display_url || json?.data?.url || null;
-        } catch (err) {
-          console.warn("imgbb 업로드 실패", err);
-        }
-      }
-
-      // 최종 폴백: blob URL (로컬 미리보기)
+      // 폴백: blob URL (로컬 미리보기)
       if (!uploadedUrl) uploadedUrl = URL.createObjectURL(file);
 
       setForm((f) => {
@@ -1371,26 +1350,6 @@ export default function NurseryBudgetApp() {
                 </div>
               </div> 
               */}
-            </div>
-
-            {/* imgbb API 키 설정 */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <Upload size={14} className="text-orange-500" /> 영수증 이미지 호스팅 (imgbb)
-              </h3>
-              <div className="flex items-center gap-2">
-                <KeyRound size={16} className="text-gray-400 shrink-0" />
-                <input
-                  className="flex-1 rounded-xl border px-3 py-2 text-sm"
-                  placeholder="imgbb API 키 (api.imgbb.com에서 발급)"
-                  value={imgbbKey}
-                  onChange={(e) => {
-                    setImgbbKey(e.target.value);
-                    try { localStorage.setItem(IMGBB_META, e.target.value); } catch {}
-                  }}
-                />
-                {imgbbKey && <span className="text-xs text-green-600 font-medium shrink-0">✅ 설정됨</span>}
-              </div>
             </div>
 
           </section>
