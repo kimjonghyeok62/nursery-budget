@@ -1,3 +1,36 @@
+function getOrInitApp(firebase, cloudInfo) {
+  const storageBucket = cloudInfo.storageBucket || `${cloudInfo.projectId}.appspot.com`;
+  if (firebase.apps?.length) return firebase.app();
+  return firebase.initializeApp({
+    apiKey: cloudInfo.apiKey,
+    authDomain: cloudInfo.authDomain,
+    projectId: cloudInfo.projectId,
+    appId: cloudInfo.appId,
+    storageBucket,
+  });
+}
+
+export async function signInWithGoogle(cloudInfo) {
+  const firebase = await loadFirebaseCompat();
+  const app = getOrInitApp(firebase, cloudInfo);
+  const auth = firebase.auth(app);
+  const provider = new firebase.auth.GoogleAuthProvider();
+  const result = await auth.signInWithPopup(provider);
+  return result.user;
+}
+
+export async function signOutFirebase(cloudInfo) {
+  const firebase = await loadFirebaseCompat();
+  const app = getOrInitApp(firebase, cloudInfo);
+  await firebase.auth(app).signOut();
+}
+
+export async function watchFirebaseAuth(cloudInfo, callback) {
+  const firebase = await loadFirebaseCompat();
+  const app = getOrInitApp(firebase, cloudInfo);
+  return firebase.auth(app).onAuthStateChanged(callback);
+}
+
 export async function loadFirebaseCompat() {
   if (window.firebase) return window.firebase;
   const appSrc = "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js";

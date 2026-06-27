@@ -1,6 +1,7 @@
 export const LOCAL_KEY = "nursery-expenses-2026";
 export const SHEET_ID = '1METL5eBui0qkLiwJHFYsk5dUuhIU_JG_jG5FxO0SyrA';
 export const CLOUD_META = "nursery-cloud-meta"; // Firebase 설정 저장
+export const GOOGLE_AUTH_META = "nursery-google-auth-meta"; // Google OAuth Client ID 저장
 export const GS_META = "nursery-gscript-meta"; // Apps Script 설정 저장
 export const IMGBB_META = "nursery-imgbb-meta"; // imgbb API 키 저장
 export const DEFAULT_IMGBB_KEY = import.meta.env.VITE_IMGBB_KEY || "";

@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileUp, LineChart, Table2, CheckSquare, GalleryHorizontalEnd, Trash2, Plus, Save, RefreshCcw, Bug, CloudUpload, CloudDownload, Link as LinkIcon, KeyRound, Upload, Settings, Loader2, Pencil, X, Folder, Users, FileText, ChevronDown, ChevronUp, HeartHandshake } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { DEFAULT_BUDGET, CATEGORY_ORDER, CLOUD_META, GS_META, LOCAL_KEY, IMGBB_META, DEFAULT_IMGBB_KEY } from "./constants";
+import { DEFAULT_BUDGET, CATEGORY_ORDER, CLOUD_META, GS_META, LOCAL_KEY, IMGBB_META, DEFAULT_IMGBB_KEY, GOOGLE_AUTH_META } from "./constants";
 import TabButton from "./components/TabButton";
 import ProgressBar from "./components/ProgressBar";
 import Card from "./components/Card";
@@ -22,6 +22,7 @@ import { useSerialNumbers } from './hooks/useSerialNumbers';
 import { useRecommendations } from './hooks/useRecommendations';
 import { groupBy } from './utils/collections';
 import { loadFirebaseCompat, uploadToFirebaseStorage } from './utils/firebase';
+import { gisSignOut } from './utils/googleAuth';
 import { gsFetch } from './utils/google';
 import { fileToDataUrl, urlToDataUrl, compressImage } from './utils/dataUrl';
 import { csvToRows, rowsToCsv } from './utils/csv';
@@ -56,46 +57,51 @@ export default function NurseryBudgetApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authRole, setAuthRole] = useState("full"); // 'full' or 'partial'
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [googleUser, setGoogleUser] = useState(null);
 
-  // Session Check on Mount
+  // Google OAuth Client ID
+  const [googleClientId, setGoogleClientId] = useState(() => {
+    try { return localStorage.getItem(GOOGLE_AUTH_META) || ""; } catch { return ""; }
+  });
+
+  // 세션 복원 (새로고침 후에도 유지)
   useEffect(() => {
-    const sessionAuth = sessionStorage.getItem('nursery_auth_Session');
-    const sessionRole = sessionStorage.getItem('nursery_auth_Role');
-    if (sessionAuth === 'true') {
-      setIsAuthenticated(true);
-      if (sessionRole) setAuthRole(sessionRole);
-    }
+    try {
+      const saved = sessionStorage.getItem('nursery_google_user');
+      if (saved) {
+        const user = JSON.parse(saved);
+        setGoogleUser(user);
+        setIsAuthenticated(true);
+      }
+    } catch { /* ignore */ }
   }, []);
 
-  const handleLogin = async (password, callback) => {
+  const handleGoogleLoginSuccess = async (user) => {
     try {
       setIsAuthLoading(true);
-      // If GAS is not configured yet (first run), we might need a bypass or standard check.
-      // But assuming user has set up GAS.
-      if (!gsCfg.url) {
-        alert("Google Apps Script URL이 설정되지 않았습니다. 설정(톱니바퀴)을 확인해주세요.");
-        callback(false);
-        return;
+      // GAS가 연결돼 있으면 이메일로 허용 여부 확인
+      if (gsCfg.url) {
+        const res = await gsFetch(gsCfg, 'verifyGoogleUser', { email: user.email }).catch(() => null);
+        if (res?.valid === false) {
+          alert("접근 권한이 없는 계정입니다. 관리자에게 문의하세요.\n(" + user.email + ")");
+          return;
+        }
+        if (res?.role) setAuthRole(res.role);
       }
-
-      const res = await gsFetch(gsCfg, 'verifyAppPassword', { password });
-
-      if (res.valid) {
-        sessionStorage.setItem('nursery_auth_Session', 'true');
-        sessionStorage.setItem('nursery_auth_Role', res.role || 'full');
-        setAuthRole(res.role || 'full');
-        setIsAuthenticated(true);
-        callback(true);
-      } else {
-        callback(false);
-      }
-    } catch (e) {
-      console.error("Login verification failed", e);
-      alert("로그인 확인 중 오류가 발생했습니다: " + e.message);
-      callback(false);
+      sessionStorage.setItem('nursery_google_user', JSON.stringify(user));
+      setGoogleUser(user);
+      setIsAuthenticated(true);
     } finally {
       setIsAuthLoading(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await gisSignOut();
+    sessionStorage.removeItem('nursery_google_user');
+    setGoogleUser(null);
+    setIsAuthenticated(false);
+    setAuthRole("full");
   };
 
   const [tab, setTab] = useState("dashboard");
@@ -1265,10 +1271,27 @@ export default function NurseryBudgetApp() {
   if (!isAuthenticated) {
     return (
       <>
-        <Login onLogin={handleLogin} loading={isAuthLoading} />
-        <div className="fixed bottom-4 right-4 text-xs text-gray-300">
-          {!gsCfg.url && "⚠️ 시트 연결 필요"}
-        </div>
+        <Login
+          clientId={googleClientId}
+          onSuccess={handleGoogleLoginSuccess}
+          loading={isAuthLoading}
+        />
+        {/* Client ID 미설정 시 설정 입력 영역 */}
+        {!googleClientId && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-full max-w-sm px-4">
+            <div className="bg-white border border-gray-200 rounded-xl shadow p-4 space-y-2">
+              <p className="text-xs text-gray-500 font-medium">Google OAuth Client ID 입력</p>
+              <input
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="xxxx.apps.googleusercontent.com"
+                onBlur={e => {
+                  const v = e.target.value.trim();
+                  if (v) { localStorage.setItem(GOOGLE_AUTH_META, v); setGoogleClientId(v); }
+                }}
+              />
+            </div>
+          </div>
+        )}
       </>
     );
   }
@@ -1292,7 +1315,21 @@ export default function NurseryBudgetApp() {
               <span className="block sm:inline">현재 지출 {formatKRW(totalSpent)} | 잔액 <span className={budget.total - totalSpent < 0 ? "text-red-600 font-bold" : ""}>{formatKRW(budget.total - totalSpent)}</span></span>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {googleUser && (
+              <div className="flex items-center gap-2">
+                {googleUser.photoURL && (
+                  <img src={googleUser.photoURL} alt="" className="w-8 h-8 rounded-full border border-gray-200" referrerPolicy="no-referrer" />
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="hidden sm:block text-xs text-gray-500 hover:text-red-500 transition-colors"
+                  title="로그아웃"
+                >
+                  로그아웃
+                </button>
+              </div>
+            )}
             <button className="px-3 py-3 rounded-xl border bg-white hover:bg-gray-50 text-gray-600" onClick={() => setShowConfig(prev => !prev)}>
               <Settings size={20} className={isSyncing ? "animate-spin text-blue-600" : ""} />
             </button>
@@ -1307,6 +1344,27 @@ export default function NurseryBudgetApp() {
         {/* Google Apps Script (Drive/Sheets) 동기화 */}
         {showConfig && (
           <section className="mb-6 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm animate-in fade-in slide-in-from-top-2 space-y-6">
+
+            {/* Google 로그인 설정 */}
+            <div>
+              <h2 className="text-lg font-semibold mb-3">Google 로그인 설정</h2>
+              <div className="space-y-2">
+                <label className="text-sm text-gray-600">OAuth 2.0 Client ID</label>
+                <input
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="xxxx.apps.googleusercontent.com"
+                  value={googleClientId}
+                  onChange={e => {
+                    const v = e.target.value.trim();
+                    setGoogleClientId(v);
+                    localStorage.setItem(GOOGLE_AUTH_META, v);
+                  }}
+                />
+                <p className="text-xs text-gray-400">
+                  Google Cloud Console → API 및 서비스 → 사용자 인증 정보 → OAuth 2.0 클라이언트 ID
+                </p>
+              </div>
+            </div>
 
             {/* Google Sync Settings (Inputs Hidden for Auto-Config) */}
             <div>
