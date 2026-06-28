@@ -1272,7 +1272,7 @@ export default function NurseryBudgetApp() {
           <div className="flex items-center gap-2">
             <button
               onClick={handleLogout}
-              className="hidden sm:block text-xs text-gray-500 hover:text-red-500 transition-colors"
+              className="text-xs text-gray-500 hover:text-red-500 transition-colors"
               title="로그아웃"
             >
               로그아웃
