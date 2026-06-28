@@ -6,14 +6,15 @@ export const GS_META = "nursery-gscript-meta"; // Apps Script 설정 저장
 
 export const DEFAULT_BUDGET = {
   year: 2026,
-  total: 6297000,
+  total: 6597000,
   items: [
     { key: "예배비", budget: 570000 },
     { key: "교육비", budget: 2200000 },
-    { key: "교사교육비", budget: 356000 },
+    { key: "교사교육비", budget: 256000 },
     { key: "행사비", budget: 1701000 },
     { key: "성경학교 및 수련회", budget: 940000 },
     { key: "운영행정비", budget: 530000 },
+    { key: "워크샵비", budget: 400000 },
   ],
 };
 

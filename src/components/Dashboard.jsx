@@ -178,8 +178,8 @@ const Dashboard = ({ totalSpent, categorySummary, onNavigate, budget, expenses, 
 
                 <div className="flex justify-between items-end text-sm">
                   <div className="text-gray-500">
-                    <div className="text-base">지출: <span className="text-gray-900 font-medium">{formatKRW(row.spent)}</span></div>
                     <div className="text-sm mt-0.5">예산: {formatKRW(row.budget)}</div>
+                    <div className="text-base">지출: <span className="text-gray-900 font-medium">{formatKRW(row.spent)}</span></div>
                   </div>
                   <div className="text-right">
                     <div className="text-xs text-gray-400">잔액</div>
