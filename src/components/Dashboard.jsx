@@ -4,12 +4,24 @@ import Card from './Card';
 import ProgressBar from './ProgressBar';
 import ExpenseChart from './ExpenseChart';
 import { useSerialNumbers } from '../hooks/useSerialNumbers';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
-const Dashboard = ({ totalSpent, categorySummary, onNavigate, budget, expenses, onViewReceipt }) => {
+const AMOUNT_RE = /(\d[\d,]*(?:\.\d+)?(?:만|억)?원)/g;
+const AMOUNT_TEST = /^\d[\d,]*(?:\.\d+)?(?:만|억)?원$/;
+function boldAmounts(text) {
+  if (!text) return text;
+  const parts = text.split(AMOUNT_RE);
+  return parts.map((part, i) =>
+    AMOUNT_TEST.test(part) ? <strong key={i}>{part}</strong> : part
+  );
+}
+
+const Dashboard = ({ totalSpent, categorySummary, onNavigate, budget, expenses, onViewReceipt, budgetGuide = {} }) => {
   const totalBudget = budget.total;
   const remain = totalBudget - totalSpent;
 
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [expandedGuide, setExpandedGuide] = useState(null);
   const chartRef = useRef(null);
   const expenseListRef = useRef(null);
   const serialMap = useSerialNumbers();
@@ -186,6 +198,42 @@ const Dashboard = ({ totalSpent, categorySummary, onNavigate, budget, expenses, 
                     <div className={`font-bold text-base ${row.remaining < 0 ? 'text-red-600' : 'text-blue-600'}`}>{formatKRW(row.remaining)}</div>
                   </div>
                 </div>
+
+                {budgetGuide[row.category] && (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedGuide(prev => prev === row.category ? null : row.category);
+                      }}
+                      className="mt-2 w-full flex items-center justify-between text-xs text-gray-400 hover:text-gray-600 border-t border-gray-100 pt-2 transition-colors"
+                    >
+                      <span>예산 지침</span>
+                      {expandedGuide === row.category ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    </button>
+
+                    {expandedGuide === row.category && (
+                      <div className="mt-2 text-xs text-gray-600 space-y-1.5 animate-in fade-in slide-in-from-top-1">
+                        <ul className="space-y-0.5">
+                          {budgetGuide[row.category].descriptions.map((desc, i) => (
+                            <li key={i} className="flex gap-1.5 leading-snug">
+                              <span className="text-gray-300 mt-0.5 shrink-0">·</span>
+                              <span>{boldAmounts(desc)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        {budgetGuide[row.category].notes?.length > 0 && (
+                          <div className="bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5 text-amber-700 space-y-0.5">
+                            <p className="font-semibold text-xs mb-0.5">⚠️ 특이사항</p>
+                            {budgetGuide[row.category].notes.map((note, i) => (
+                              <p key={i} className="leading-snug">{boldAmounts(note)}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

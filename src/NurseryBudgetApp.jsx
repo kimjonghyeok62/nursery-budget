@@ -924,7 +924,8 @@ export default function NurseryBudgetApp() {
     totalSpent,
     categorySummary,
     onNavigate: handleNavigate,
-    budget // Pass fetched budget
+    budget, // Pass fetched budget
+    budgetGuide,
   };
 
   const byCategoryProps = {
