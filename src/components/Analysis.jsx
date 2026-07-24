@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { formatKRW, parseAmount } from '../utils/format';
-import { CATEGORY_ORDER as DEFAULT_CATEGORY_ORDER } from '../constants';
+import { CATEGORY_ORDER as DEFAULT_CATEGORY_ORDER, FELLOWSHIP_CATEGORIES } from '../constants';
 import Card from './Card';
 import { ExternalLink, Plus, RefreshCcw, Save, Trash2, Upload, Loader2, Link as LinkIcon, FileCheck, Pencil, Cloud, Folder, HeartHandshake } from 'lucide-react';
 import { gsFetch } from '../utils/google';
@@ -113,11 +113,13 @@ const Analysis = ({
   const [fellowshipForm, setFellowshipForm] = React.useState({
     type: "지출", // "수입" or "지출"
     date: new Date().toISOString().split('T')[0],
+    category: "",
     description: "",
     amount: "",
     remarks: "",
     receiptUrl: ""
   });
+  const [categoryMode, setCategoryMode] = React.useState("preset"); // "preset" or "custom"
   const [isUploading, setIsUploading] = React.useState(false);
 
   const fellowshipLedger = useMemo(() => {
@@ -155,8 +157,8 @@ const Analysis = ({
 
   const handleAddFellowship = async (e) => {
     e.preventDefault();
-    if (!fellowshipForm.date || !fellowshipForm.description || !fellowshipForm.amount) {
-      alert("날짜, 적요, 금액은 필수입니다.");
+    if (!fellowshipForm.date || !fellowshipForm.category || !fellowshipForm.description || !fellowshipForm.amount) {
+      alert("날짜, 과목, 적요, 금액은 필수입니다.");
       return;
     }
 
@@ -164,6 +166,7 @@ const Analysis = ({
     const newItem = {
       id: editingId || crypto.randomUUID(),
       date: fellowshipForm.date,
+      category: fellowshipForm.category,
       description: fellowshipForm.description,
       income: fellowshipForm.type === "수입" ? amount : 0,
       expense: fellowshipForm.type === "지출" ? amount : 0,
@@ -181,11 +184,13 @@ const Analysis = ({
     setFellowshipForm({
       type: "지출",
       date: new Date().toISOString().split('T')[0],
+      category: "",
       description: "",
       amount: "",
       remarks: "",
       receiptUrl: ""
     });
+    setCategoryMode("preset");
   };
 
   const onImageUpload = async (e) => {
@@ -227,11 +232,13 @@ const Analysis = ({
     setFellowshipForm({
       type: item.income > 0 ? "수입" : "지출",
       date: item.date,
+      category: item.category || "",
       description: item.description,
       amount: String(item.income > 0 ? item.income : item.expense),
       remarks: item.remarks || "",
       receiptUrl: item.receiptUrl || ""
     });
+    setCategoryMode(item.category && !FELLOWSHIP_CATEGORIES.includes(item.category) ? "custom" : "preset");
     // Scroll to input
     const el = document.getElementById('fellowship-input-section');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -249,7 +256,7 @@ const Analysis = ({
       <section id="fellowship-input-section" className="mb-8 bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm">
         <h4 className="text-xl font-semibold mb-4">친목회(수입,지출) 입력</h4>
         <form onSubmit={handleAddFellowship} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-3 items-end">
             <div className="col-span-1">
               <label className="text-xs font-medium text-gray-500 mb-1 block">구분</label>
               <div className="flex bg-white rounded-xl border border-gray-300 p-1">
@@ -268,6 +275,47 @@ const Analysis = ({
             <div className="col-span-1">
               <label className="text-xs font-medium text-gray-500 mb-1 block">날짜</label>
               <input type="date" value={fellowshipForm.date} onChange={(e) => setFellowshipForm({ ...fellowshipForm, date: e.target.value })} className="w-full rounded-xl border-gray-300 border px-3 py-2 text-sm" />
+            </div>
+            <div className="col-span-1">
+              <label className="text-xs font-medium text-gray-500 mb-1 block">과목</label>
+              {categoryMode === "preset" ? (
+                <select
+                  value={fellowshipForm.category}
+                  onChange={(e) => {
+                    if (e.target.value === "__custom__") {
+                      setCategoryMode("custom");
+                      setFellowshipForm({ ...fellowshipForm, category: "" });
+                    } else {
+                      setFellowshipForm({ ...fellowshipForm, category: e.target.value });
+                    }
+                  }}
+                  className="w-full rounded-xl border-gray-300 border px-3 py-2 text-sm bg-white"
+                >
+                  <option value="" disabled>선택</option>
+                  {FELLOWSHIP_CATEGORIES.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                  <option value="__custom__">직접입력</option>
+                </select>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={fellowshipForm.category}
+                    onChange={(e) => setFellowshipForm({ ...fellowshipForm, category: e.target.value })}
+                    placeholder="과목 직접입력"
+                    className="w-full rounded-xl border-gray-300 border px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setCategoryMode("preset"); setFellowshipForm({ ...fellowshipForm, category: "" }); }}
+                    className="shrink-0 text-xs text-gray-400 hover:text-gray-600 px-1"
+                    title="목록에서 선택"
+                  >
+                    ▾
+                  </button>
+                </div>
+              )}
             </div>
             <div className="col-span-2 md:col-span-2">
               <label className="text-xs font-medium text-gray-500 mb-1 block">적요</label>
@@ -296,7 +344,8 @@ const Analysis = ({
             )}
             <div className={`flex items-center gap-2 ${fellowshipForm.type === "수입" ? "w-full justify-end" : "shrink-0"}`}>
               <button type="button" onClick={() => {
-                setFellowshipForm({ type: "지출", date: new Date().toISOString().split('T')[0], description: "", amount: "", remarks: "", receiptUrl: "" });
+                setFellowshipForm({ type: "지출", date: new Date().toISOString().split('T')[0], category: "", description: "", amount: "", remarks: "", receiptUrl: "" });
+                setCategoryMode("preset");
                 setEditingId(null);
               }} className="px-3 py-2 rounded-xl border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 flex items-center gap-1 text-sm">
                 <RefreshCcw size={16} /> 초기화
@@ -338,6 +387,7 @@ const Analysis = ({
               <tr className="bg-slate-50 border-y border-slate-200 text-gray-500 font-medium">
                 <th className="px-3 py-2 text-center w-12">#</th>
                 <th className="px-3 py-2 text-center w-24">날짜</th>
+                <th className="px-3 py-2 text-center w-24">과목</th>
                 <th className="px-3 py-2 text-left">적요</th>
                 <th className="px-3 py-2 text-right w-24">수입금액</th>
                 <th className="px-3 py-2 text-right w-24">지출금액</th>
@@ -350,7 +400,7 @@ const Analysis = ({
             <tbody>
               {fellowshipLedger.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="py-12 text-center text-gray-400">데이터가 없습니다.</td>
+                  <td colSpan="10" className="py-12 text-center text-gray-400">데이터가 없습니다.</td>
                 </tr>
               ) : (
                 fellowshipLedger.map((item) => (
@@ -370,6 +420,9 @@ const Analysis = ({
                       }}
                     >
                       {String(item.date || "").substring(5)}
+                    </td>
+                    <td className="px-3 py-2 text-center text-gray-500 text-sm whitespace-nowrap">
+                      {item.category}
                     </td>
                     <td
                       className={`px-3 py-2 font-medium ${item.receiptUrl ? 'cursor-pointer hover:text-indigo-600 hover:underline' : ''}`}
