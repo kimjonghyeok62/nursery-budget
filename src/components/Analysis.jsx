@@ -121,7 +121,7 @@ const Analysis = ({
   });
   const [categoryMode, setCategoryMode] = React.useState("preset"); // "preset" or "custom"
   const [isUploading, setIsUploading] = React.useState(false);
-  const [categoryFilter, setCategoryFilter] = useState("전체");
+  const [expandedSummaryCategory, setExpandedSummaryCategory] = useState(null);
 
   const fellowshipLedger = useMemo(() => {
     // 1. Sort ascending for cumulative balance calculation
@@ -138,25 +138,19 @@ const Analysis = ({
     return withBalance.reverse();
   }, [fellowshipData]);
 
-  // 데이터에 실제로 등장하는 과목(프리셋 + 직접입력값 포함) 기준으로 필터 옵션 구성
-  const fellowshipCategoryOptions = useMemo(() => {
+  // 과목별 수입지출 현황: 프리셋 + 데이터에 실제 등장하는 직접입력 과목 순으로 집계
+  const fellowshipCategorySummary = useMemo(() => {
     const extras = [...new Set(fellowshipData.map(i => i.category).filter(Boolean))]
       .filter(c => !FELLOWSHIP_CATEGORIES.includes(c));
-    return ["전체", ...FELLOWSHIP_CATEGORIES, ...extras];
-  }, [fellowshipData]);
+    const categories = [...FELLOWSHIP_CATEGORIES, ...extras];
 
-  const filteredFellowshipLedger = useMemo(() => {
-    if (categoryFilter === "전체") return fellowshipLedger;
-    return fellowshipLedger.filter(item => item.category === categoryFilter);
-  }, [fellowshipLedger, categoryFilter]);
-
-  const fellowshipFilterSummary = useMemo(() => {
-    return filteredFellowshipLedger.reduce((acc, item) => {
-      acc.income += item.income || 0;
-      acc.expense += item.expense || 0;
-      return acc;
-    }, { income: 0, expense: 0 });
-  }, [filteredFellowshipLedger]);
+    return categories.map(category => {
+      const items = fellowshipLedger.filter(item => item.category === category);
+      const income = items.reduce((sum, i) => sum + (i.income || 0), 0);
+      const expense = items.reduce((sum, i) => sum + (i.expense || 0), 0);
+      return { category, items, income, expense, balance: income - expense };
+    }).filter(row => row.items.length > 0);
+  }, [fellowshipLedger, fellowshipData]);
 
   // Effect to scroll to highlighted fellowship row
   React.useEffect(() => {
@@ -402,24 +396,6 @@ const Analysis = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          {fellowshipCategoryOptions.map(c => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setCategoryFilter(c)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${categoryFilter === c ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}
-            >
-              {c}
-            </button>
-          ))}
-          {categoryFilter !== "전체" && (
-            <span className="text-xs text-gray-500 ml-2">
-              {filteredFellowshipLedger.length}건 · 수입 {fellowshipFilterSummary.income.toLocaleString()}원 · 지출 {fellowshipFilterSummary.expense.toLocaleString()}원
-            </span>
-          )}
-        </div>
-
         <div className="overflow-x-auto -mx-4">
           <table className="w-full text-base border-collapse min-w-[800px]">
             <thead>
@@ -437,12 +413,12 @@ const Analysis = ({
               </tr>
             </thead>
             <tbody>
-              {filteredFellowshipLedger.length === 0 ? (
+              {fellowshipLedger.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="py-12 text-center text-gray-400">{categoryFilter === "전체" ? "데이터가 없습니다." : "해당 과목의 내역이 없습니다."}</td>
+                  <td colSpan="10" className="py-12 text-center text-gray-400">데이터가 없습니다.</td>
                 </tr>
               ) : (
-                filteredFellowshipLedger.map((item) => (
+                fellowshipLedger.map((item) => (
                   <tr
                     key={item.id}
                     id={`fellowship-row-${item.id}`}
@@ -519,6 +495,89 @@ const Analysis = ({
                     </td>
                   </tr>
                 ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 과목별 수입지출 현황 섹션 */}
+      <section className="mt-8 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm overflow-hidden">
+        <h4 className="text-xl font-semibold mb-4">과목별 수입지출 현황</h4>
+        <div className="overflow-x-auto -mx-4">
+          <table className="w-full text-base border-collapse min-w-[600px]">
+            <thead>
+              <tr className="bg-slate-50 border-y border-slate-200 text-gray-500 font-medium">
+                <th className="px-3 py-2 text-left">과목</th>
+                <th className="px-3 py-2 text-center w-16">건수</th>
+                <th className="px-3 py-2 text-right w-28">수입합계</th>
+                <th className="px-3 py-2 text-right w-28">지출합계</th>
+                <th className="px-3 py-2 text-right w-28 bg-slate-100/50">잔액</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fellowshipCategorySummary.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="py-12 text-center text-gray-400">데이터가 없습니다.</td>
+                </tr>
+              ) : (
+                fellowshipCategorySummary.map((row) => {
+                  const isOpen = expandedSummaryCategory === row.category;
+                  return (
+                    <React.Fragment key={row.category}>
+                      <tr
+                        className="border-b border-gray-100 hover:bg-slate-50 transition-colors cursor-pointer"
+                        onClick={() => setExpandedSummaryCategory(isOpen ? null : row.category)}
+                      >
+                        <td className="px-3 py-2 font-medium flex items-center gap-1.5">
+                          <span className={`inline-block text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}>▸</span>
+                          {row.category}
+                        </td>
+                        <td className="px-3 py-2 text-center text-gray-500 text-sm">{row.items.length}</td>
+                        <td className="px-3 py-2 text-right text-blue-600 font-semibold">{row.income.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-red-600 font-semibold">{row.expense.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right font-bold bg-slate-50/30">{row.balance.toLocaleString()}</td>
+                      </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan="5" className="p-0 bg-slate-50/60">
+                            <div className="p-3">
+                              <table className="w-full text-sm border-collapse">
+                                <thead>
+                                  <tr className="text-gray-400 border-b border-slate-200">
+                                    <th className="px-2 py-1 text-center w-20">날짜</th>
+                                    <th className="px-2 py-1 text-left">적요</th>
+                                    <th className="px-2 py-1 text-right w-24">수입금액</th>
+                                    <th className="px-2 py-1 text-right w-24">지출금액</th>
+                                    <th className="px-2 py-1 text-left w-24">비고</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {row.items.map((item) => (
+                                    <tr key={item.id} className="border-b border-slate-100">
+                                      <td className="px-2 py-1 text-center text-gray-500 whitespace-nowrap">{String(item.date || "").substring(5)}</td>
+                                      <td className="px-2 py-1">{item.description}</td>
+                                      <td className="px-2 py-1 text-right text-blue-600">{item.income > 0 ? item.income.toLocaleString() : ""}</td>
+                                      <td className="px-2 py-1 text-right text-red-600">{item.expense > 0 ? item.expense.toLocaleString() : ""}</td>
+                                      <td className="px-2 py-1 text-gray-500 truncate max-w-[120px]" title={item.remarks}>{item.remarks}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot>
+                                  <tr className="font-bold border-t-2 border-slate-300">
+                                    <td colSpan="5" className="px-2 py-2 text-right">
+                                      부분합계 · 수입 <span className="text-blue-600">{row.income.toLocaleString()}원</span> · 지출 <span className="text-red-600">{row.expense.toLocaleString()}원</span> · 잔액 <span className="text-gray-900">{row.balance.toLocaleString()}원</span>
+                                    </td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
