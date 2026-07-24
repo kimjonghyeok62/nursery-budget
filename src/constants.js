@@ -28,6 +28,7 @@ export const ATTENDANCE_SHEET_GID = "348133938";
 export const MEMBER_PHOTO_FOLDER_ID = "1gmhV08lX3V2I0PgO2fNKCiWc3x8nasQn";
 export const FELLOWSHIP_SHEET_GID = "1416333507";
 export const FELLOWSHIP_FOLDER_ID = "1ZkYWUsDxJGn-JK1sxyN7OZqipGdGNBl4";
+export const FELLOWSHIP_CATEGORIES = ["교사친목회", "수익자부담", "지원금"];
 
 // 출석 관련 추가 데이터 시트 GID
 export const MEMORY_VERSES_GID = "526644461";  // 암송말씀
