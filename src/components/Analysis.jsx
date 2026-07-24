@@ -121,6 +121,7 @@ const Analysis = ({
   });
   const [categoryMode, setCategoryMode] = React.useState("preset"); // "preset" or "custom"
   const [isUploading, setIsUploading] = React.useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("전체");
 
   const fellowshipLedger = useMemo(() => {
     // 1. Sort ascending for cumulative balance calculation
@@ -136,6 +137,26 @@ const Analysis = ({
     // 3. Reverse for display: newest date at top
     return withBalance.reverse();
   }, [fellowshipData]);
+
+  // 데이터에 실제로 등장하는 과목(프리셋 + 직접입력값 포함) 기준으로 필터 옵션 구성
+  const fellowshipCategoryOptions = useMemo(() => {
+    const extras = [...new Set(fellowshipData.map(i => i.category).filter(Boolean))]
+      .filter(c => !FELLOWSHIP_CATEGORIES.includes(c));
+    return ["전체", ...FELLOWSHIP_CATEGORIES, ...extras];
+  }, [fellowshipData]);
+
+  const filteredFellowshipLedger = useMemo(() => {
+    if (categoryFilter === "전체") return fellowshipLedger;
+    return fellowshipLedger.filter(item => item.category === categoryFilter);
+  }, [fellowshipLedger, categoryFilter]);
+
+  const fellowshipFilterSummary = useMemo(() => {
+    return filteredFellowshipLedger.reduce((acc, item) => {
+      acc.income += item.income || 0;
+      acc.expense += item.expense || 0;
+      return acc;
+    }, { income: 0, expense: 0 });
+  }, [filteredFellowshipLedger]);
 
   // Effect to scroll to highlighted fellowship row
   React.useEffect(() => {
@@ -381,6 +402,24 @@ const Analysis = ({
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {fellowshipCategoryOptions.map(c => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCategoryFilter(c)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${categoryFilter === c ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}
+            >
+              {c}
+            </button>
+          ))}
+          {categoryFilter !== "전체" && (
+            <span className="text-xs text-gray-500 ml-2">
+              {filteredFellowshipLedger.length}건 · 수입 {fellowshipFilterSummary.income.toLocaleString()}원 · 지출 {fellowshipFilterSummary.expense.toLocaleString()}원
+            </span>
+          )}
+        </div>
+
         <div className="overflow-x-auto -mx-4">
           <table className="w-full text-base border-collapse min-w-[800px]">
             <thead>
@@ -398,12 +437,12 @@ const Analysis = ({
               </tr>
             </thead>
             <tbody>
-              {fellowshipLedger.length === 0 ? (
+              {filteredFellowshipLedger.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="py-12 text-center text-gray-400">데이터가 없습니다.</td>
+                  <td colSpan="10" className="py-12 text-center text-gray-400">{categoryFilter === "전체" ? "데이터가 없습니다." : "해당 과목의 내역이 없습니다."}</td>
                 </tr>
               ) : (
-                fellowshipLedger.map((item) => (
+                filteredFellowshipLedger.map((item) => (
                   <tr
                     key={item.id}
                     id={`fellowship-row-${item.id}`}
