@@ -152,6 +152,15 @@ const Analysis = ({
     }).filter(row => row.items.length > 0);
   }, [fellowshipLedger, fellowshipData]);
 
+  const fellowshipCategoryGrandTotal = useMemo(() => {
+    return fellowshipCategorySummary.reduce((acc, row) => {
+      acc.count += row.items.length;
+      acc.income += row.income;
+      acc.expense += row.expense;
+      return acc;
+    }, { count: 0, income: 0, expense: 0 });
+  }, [fellowshipCategorySummary]);
+
   // Effect to scroll to highlighted fellowship row
   React.useEffect(() => {
     if (highlightId) {
@@ -580,6 +589,17 @@ const Analysis = ({
                 })
               )}
             </tbody>
+            {fellowshipCategorySummary.length > 0 && (
+              <tfoot>
+                <tr className="font-bold border-t-2 border-slate-300 bg-slate-50">
+                  <td className="px-3 py-2">합계</td>
+                  <td className="px-3 py-2 text-center text-gray-500 text-sm">{fellowshipCategoryGrandTotal.count}</td>
+                  <td className="px-3 py-2 text-right text-blue-600">{fellowshipCategoryGrandTotal.income.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right text-red-600">{fellowshipCategoryGrandTotal.expense.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right bg-slate-100/50">{(fellowshipCategoryGrandTotal.income - fellowshipCategoryGrandTotal.expense).toLocaleString()}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </section>
