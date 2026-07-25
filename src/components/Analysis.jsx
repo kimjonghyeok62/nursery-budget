@@ -276,6 +276,100 @@ const Analysis = ({
         <HeartHandshake className="text-blue-600" /> 교사 친목회
       </h3>
 
+      {/* 과목별 수입지출 현황 섹션 */}
+      <section className="mb-8 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm overflow-hidden">
+        <h4 className="text-xl font-semibold mb-4">과목별 수입지출 현황</h4>
+        <div className="overflow-x-auto -mx-4">
+          <table className="w-full text-base border-collapse min-w-[600px]">
+            <thead>
+              <tr className="bg-slate-50 border-y border-slate-200 text-gray-500 font-medium">
+                <th className="px-3 py-2 text-left">과목</th>
+                <th className="px-3 py-2 text-center w-16">건수</th>
+                <th className="px-3 py-2 text-right w-28">수입합계</th>
+                <th className="px-3 py-2 text-right w-28">지출합계</th>
+                <th className="px-3 py-2 text-right w-28 bg-slate-100/50">잔액</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fellowshipCategorySummary.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="py-12 text-center text-gray-400">데이터가 없습니다.</td>
+                </tr>
+              ) : (
+                fellowshipCategorySummary.map((row) => {
+                  const isOpen = expandedSummaryCategory === row.category;
+                  return (
+                    <React.Fragment key={row.category}>
+                      <tr
+                        className="border-b border-gray-100 hover:bg-slate-50 transition-colors cursor-pointer"
+                        onClick={() => setExpandedSummaryCategory(isOpen ? null : row.category)}
+                      >
+                        <td className="px-3 py-2 font-medium flex items-center gap-1.5">
+                          <span className={`inline-block text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}>▸</span>
+                          {row.category}
+                        </td>
+                        <td className="px-3 py-2 text-center text-gray-500 text-sm">{row.items.length}</td>
+                        <td className="px-3 py-2 text-right text-blue-600 font-semibold">{row.income.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-red-600 font-semibold">{row.expense.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right font-bold bg-slate-50/30">{row.balance.toLocaleString()}</td>
+                      </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan="5" className="p-0 bg-slate-50/60">
+                            <div className="p-3">
+                              <table className="w-full text-sm border-collapse">
+                                <thead>
+                                  <tr className="text-gray-400 border-b border-slate-200">
+                                    <th className="px-2 py-1 text-center w-20">날짜</th>
+                                    <th className="px-2 py-1 text-left">적요</th>
+                                    <th className="px-2 py-1 text-right w-24">수입금액</th>
+                                    <th className="px-2 py-1 text-right w-24">지출금액</th>
+                                    <th className="px-2 py-1 text-left w-24">비고</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {row.items.map((item) => (
+                                    <tr key={item.id} className="border-b border-slate-100">
+                                      <td className="px-2 py-1 text-center text-gray-500 whitespace-nowrap">{String(item.date || "").substring(5)}</td>
+                                      <td className="px-2 py-1">{item.description}</td>
+                                      <td className="px-2 py-1 text-right text-blue-600">{item.income > 0 ? item.income.toLocaleString() : ""}</td>
+                                      <td className="px-2 py-1 text-right text-red-600">{item.expense > 0 ? item.expense.toLocaleString() : ""}</td>
+                                      <td className="px-2 py-1 text-gray-500 truncate max-w-[120px]" title={item.remarks}>{item.remarks}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot>
+                                  <tr className="font-bold border-t-2 border-slate-300">
+                                    <td colSpan="5" className="px-2 py-2 text-right">
+                                      부분합계 · 수입 <span className="text-blue-600">{row.income.toLocaleString()}원</span> · 지출 <span className="text-red-600">{row.expense.toLocaleString()}원</span> · 잔액 <span className="text-gray-900">{row.balance.toLocaleString()}원</span>
+                                    </td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </tbody>
+            {fellowshipCategorySummary.length > 0 && (
+              <tfoot>
+                <tr className="font-bold border-t-2 border-slate-300 bg-slate-50">
+                  <td className="px-3 py-2">합계</td>
+                  <td className="px-3 py-2 text-center text-gray-500 text-sm">{fellowshipCategoryGrandTotal.count}</td>
+                  <td className="px-3 py-2 text-right text-blue-600">{fellowshipCategoryGrandTotal.income.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right text-red-600">{fellowshipCategoryGrandTotal.expense.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right bg-slate-100/50">{(fellowshipCategoryGrandTotal.income - fellowshipCategoryGrandTotal.expense).toLocaleString()}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </section>
+
       {/* 친목회 입력 섹션 */}
       <section id="fellowship-input-section" className="mb-8 bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm">
         <h4 className="text-xl font-semibold mb-4">친목회(수입,지출) 입력</h4>
@@ -506,100 +600,6 @@ const Analysis = ({
                 ))
               )}
             </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* 과목별 수입지출 현황 섹션 */}
-      <section className="mt-8 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm overflow-hidden">
-        <h4 className="text-xl font-semibold mb-4">과목별 수입지출 현황</h4>
-        <div className="overflow-x-auto -mx-4">
-          <table className="w-full text-base border-collapse min-w-[600px]">
-            <thead>
-              <tr className="bg-slate-50 border-y border-slate-200 text-gray-500 font-medium">
-                <th className="px-3 py-2 text-left">과목</th>
-                <th className="px-3 py-2 text-center w-16">건수</th>
-                <th className="px-3 py-2 text-right w-28">수입합계</th>
-                <th className="px-3 py-2 text-right w-28">지출합계</th>
-                <th className="px-3 py-2 text-right w-28 bg-slate-100/50">잔액</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fellowshipCategorySummary.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="py-12 text-center text-gray-400">데이터가 없습니다.</td>
-                </tr>
-              ) : (
-                fellowshipCategorySummary.map((row) => {
-                  const isOpen = expandedSummaryCategory === row.category;
-                  return (
-                    <React.Fragment key={row.category}>
-                      <tr
-                        className="border-b border-gray-100 hover:bg-slate-50 transition-colors cursor-pointer"
-                        onClick={() => setExpandedSummaryCategory(isOpen ? null : row.category)}
-                      >
-                        <td className="px-3 py-2 font-medium flex items-center gap-1.5">
-                          <span className={`inline-block text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}>▸</span>
-                          {row.category}
-                        </td>
-                        <td className="px-3 py-2 text-center text-gray-500 text-sm">{row.items.length}</td>
-                        <td className="px-3 py-2 text-right text-blue-600 font-semibold">{row.income.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right text-red-600 font-semibold">{row.expense.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right font-bold bg-slate-50/30">{row.balance.toLocaleString()}</td>
-                      </tr>
-                      {isOpen && (
-                        <tr>
-                          <td colSpan="5" className="p-0 bg-slate-50/60">
-                            <div className="p-3">
-                              <table className="w-full text-sm border-collapse">
-                                <thead>
-                                  <tr className="text-gray-400 border-b border-slate-200">
-                                    <th className="px-2 py-1 text-center w-20">날짜</th>
-                                    <th className="px-2 py-1 text-left">적요</th>
-                                    <th className="px-2 py-1 text-right w-24">수입금액</th>
-                                    <th className="px-2 py-1 text-right w-24">지출금액</th>
-                                    <th className="px-2 py-1 text-left w-24">비고</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {row.items.map((item) => (
-                                    <tr key={item.id} className="border-b border-slate-100">
-                                      <td className="px-2 py-1 text-center text-gray-500 whitespace-nowrap">{String(item.date || "").substring(5)}</td>
-                                      <td className="px-2 py-1">{item.description}</td>
-                                      <td className="px-2 py-1 text-right text-blue-600">{item.income > 0 ? item.income.toLocaleString() : ""}</td>
-                                      <td className="px-2 py-1 text-right text-red-600">{item.expense > 0 ? item.expense.toLocaleString() : ""}</td>
-                                      <td className="px-2 py-1 text-gray-500 truncate max-w-[120px]" title={item.remarks}>{item.remarks}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                                <tfoot>
-                                  <tr className="font-bold border-t-2 border-slate-300">
-                                    <td colSpan="5" className="px-2 py-2 text-right">
-                                      부분합계 · 수입 <span className="text-blue-600">{row.income.toLocaleString()}원</span> · 지출 <span className="text-red-600">{row.expense.toLocaleString()}원</span> · 잔액 <span className="text-gray-900">{row.balance.toLocaleString()}원</span>
-                                    </td>
-                                  </tr>
-                                </tfoot>
-                              </table>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </tbody>
-            {fellowshipCategorySummary.length > 0 && (
-              <tfoot>
-                <tr className="font-bold border-t-2 border-slate-300 bg-slate-50">
-                  <td className="px-3 py-2">합계</td>
-                  <td className="px-3 py-2 text-center text-gray-500 text-sm">{fellowshipCategoryGrandTotal.count}</td>
-                  <td className="px-3 py-2 text-right text-blue-600">{fellowshipCategoryGrandTotal.income.toLocaleString()}</td>
-                  <td className="px-3 py-2 text-right text-red-600">{fellowshipCategoryGrandTotal.expense.toLocaleString()}</td>
-                  <td className="px-3 py-2 text-right bg-slate-100/50">{(fellowshipCategoryGrandTotal.income - fellowshipCategoryGrandTotal.expense).toLocaleString()}</td>
-                </tr>
-              </tfoot>
-            )}
           </table>
         </div>
       </section>
